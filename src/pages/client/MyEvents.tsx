@@ -1,122 +1,177 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useUnified } from '@/context/UnifiedContext';
 import { ClientLayout } from '@/components/ClientLayout';
+import { useUnified } from '@/context/UnifiedContext';
+import { trpc } from '@/providers/trpc';
 import {
-  CalendarCheck, Package, ArrowRight, Plus,
-  Clock, CheckCircle, DollarSign, MessageCircle
+  Calendar, DollarSign, Users, AlertCircle, Loader2,
+  CheckCircle2, Clock
 } from 'lucide-react';
 
 export function MyEvents() {
   const navigate = useNavigate();
-  const { events } = useUnified();
+  const { clientUser } = useUnified();
+
+  // Get client from API by phone
+  const { data: clientRecord } = trpc.spClient.byPhone.useQuery(
+    { phone: clientUser?.phone ?? '' },
+    { enabled: !!clientUser?.phone }
+  );
+
+  const clientId = clientRecord?.id ?? 0;
+
+  // Fetch real events from API
+  const { data: apiEvents, isLoading } = trpc.event.list.useQuery(
+    { clientId, limit: 50 },
+    { enabled: clientId > 0 }
+  );
+
   const [activeTab, setActiveTab] = useState<'plans' | 'quotes' | 'bookings'>('plans');
 
-  const upcomingEvents = events.filter(e => e.status !== 'completed');
-  const totalBudget = upcomingEvents.reduce((s, e) => s + e.budget, 0);
-  const totalSpent = upcomingEvents.reduce((s, e) => s + e.totalCost, 0);
+  // Convert API events to display format
+  const events = useMemo(() => {
+    if (!apiEvents) return [];
+    return apiEvents.map(e => ({
+      id: String(e.id),
+      name: e.eventType,
+      type: e.eventType,
+      date: e.eventDate ?? 'TBD',
+      status: e.status,
+      budget: Number(e.budget),
+      spent: Number(e.totalCost ?? 0),
+      guests: e.guestCount ?? 0,
+      province: e.province ?? '',
+      items: (e.items ?? []).map((item: any) => ({
+        category: item.category,
+        vendor: item.vendorName ?? item.vendor?.businessName ?? 'TBD',
+        price: Number(item.price ?? 0),
+        status: item.status ?? 'pending',
+      })),
+    }));
+  }, [apiEvents]);
 
-  const statusColors: Record<string, string> = {
-    planning: 'bg-amber-50 text-amber-600',
-    quoted: 'bg-purple-50 text-purple-600',
-    vendor_responded: 'bg-teal-50 text-teal-600',
-    confirmed: 'bg-emerald-50 text-emerald-600',
-    deposit_paid: 'bg-blue-50 text-blue-600',
-    ready: 'bg-green-50 text-green-600',
+  const stats = useMemo(() => ({
+    totalEvents: events.length,
+    totalBudgeted: events.reduce((s, e) => s + e.budget, 0),
+    totalSpent: events.reduce((s, e) => s + e.spent, 0),
+    pending: events.filter(e => e.status === 'planning' || e.status === 'quoted').length,
+  }), [events]);
+
+  const statusConfig: Record<string, { label: string; color: string; bg: string; icon: any }> = {
+    planning: { label: 'Planning', color: '#3B82F6', bg: '#EFF6FF', icon: Clock },
+    quoted: { label: 'Quoted', color: '#F59E0B', bg: '#FFFBEB', icon: DollarSign },
+    deposit_paid: { label: 'Deposit Paid', color: '#8B5CF6', bg: '#F5F3FF', icon: CheckCircle2 },
+    confirmed: { label: 'Confirmed', color: '#10B981', bg: '#ECFDF5', icon: CheckCircle2 },
+    ready: { label: 'Ready', color: '#2BBCA8', bg: '#F0FDFA', icon: CheckCircle2 },
+    completed: { label: 'Completed', color: '#64748B', bg: '#F1F5F9', icon: CheckCircle2 },
   };
 
   return (
     <ClientLayout title="My Events">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Stats Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="max-w-4xl mx-auto space-y-5">
+        {/* Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { icon: CalendarCheck, label: 'Events', value: upcomingEvents.length, color: '#2BBCA8' },
-            { icon: DollarSign, label: 'Budgeted', value: `R ${totalBudget.toLocaleString('en-ZA')}`, color: '#F59E0B' },
-            { icon: CheckCircle, label: 'Spent', value: `R ${totalSpent.toLocaleString('en-ZA')}`, color: '#10B981' },
-            { icon: Clock, label: 'Pending', value: `R ${(totalBudget - totalSpent).toLocaleString('en-ZA')}`, color: '#8B5CF6' },
-          ].map((stat, i) => (
+            { label: 'Events', value: stats.totalEvents, icon: Calendar, color: '#2BBCA8' },
+            { label: 'Budgeted', value: `R${(stats.totalBudgeted / 1000).toFixed(0)}k`, icon: DollarSign, color: '#3B82F6' },
+            { label: 'Spent', value: `R${(stats.totalSpent / 1000).toFixed(0)}k`, icon: DollarSign, color: '#F59E0B' },
+            { label: 'Pending', value: stats.pending, icon: AlertCircle, color: '#EF4444' },
+          ].map((s, i) => (
             <div key={i} className="rounded-xl p-4" style={{ background: 'white', boxShadow: '0 2px 8px -2px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.04)' }}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${stat.color}15` }}>
-                  <stat.icon className="w-4 h-4" style={{ color: stat.color }} />
-                </div>
-              </div>
-              <p className="text-lg font-bold" style={{ color: '#1a1a2e' }}>{stat.value}</p>
-              <p className="text-[10px] font-medium" style={{ color: '#94A3B8' }}>{stat.label}</p>
+              <s.icon className="w-5 h-5 mb-2" style={{ color: s.color }} />
+              <p className="text-xl font-bold" style={{ color: '#1a1a2e' }}>{s.value}</p>
+              <p className="text-[10px] font-medium" style={{ color: '#94A3B8' }}>{s.label}</p>
             </div>
           ))}
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2">
-          {(['plans', 'quotes', 'bookings'] as const).map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className="px-5 py-2.5 rounded-xl text-sm font-semibold capitalize transition-all"
-              style={activeTab === tab ? { background: '#2BBCA8', color: 'white' } : { background: 'white', color: '#64748B', border: '1px solid #E2E8F0' }}>
-              {tab}
+        <div className="flex gap-2 p-1 rounded-xl" style={{ background: '#F1F5F9' }}>
+          {(['plans', 'quotes', 'bookings'] as const).map(t => (
+            <button key={t} onClick={() => setActiveTab(t)}
+              className="flex-1 py-2.5 rounded-lg text-xs font-bold capitalize transition-all"
+              style={activeTab === t ? { background: 'white', color: '#1a1a2e', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: '#64748B' }}>
+              {t}
             </button>
           ))}
         </div>
 
+        {/* Loading */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#2BBCA8' }} />
+          </div>
+        )}
+
         {/* Events List */}
-        {activeTab === 'plans' && (
-          <div className="space-y-4">
-            {upcomingEvents.length === 0 ? (
-              <div className="rounded-2xl p-12 text-center" style={{ background: 'white', boxShadow: '0 2px 12px -4px rgba(0,0,0,0.08)' }}>
-                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)' }}>
-                  <CalendarCheck className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-lg font-bold mb-2" style={{ color: '#1a1a2e' }}>No Events Yet</h3>
-                <p className="text-sm mb-6" style={{ color: '#64748B' }}>Start planning your first event with our AI planner.</p>
-                <button onClick={() => navigate('/client/planner')}
-                  className="px-6 py-3 rounded-xl text-sm font-bold text-white flex items-center gap-2 mx-auto"
-                  style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)' }}>
-                  <Plus className="w-4 h-4" /> Plan an Event
-                </button>
-              </div>
-            ) : (
-              upcomingEvents.map((evt) => (
-                <div key={evt.id} className="rounded-xl p-5 flex items-center gap-4 transition-all hover:-translate-y-0.5" style={{ background: 'white', boxShadow: '0 2px 8px -2px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.04)' }}>
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, rgba(43,188,168,0.1), rgba(245,158,11,0.1))' }}>
-                    <Package className="w-6 h-6" style={{ color: '#2BBCA8' }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-bold" style={{ color: '#1a1a2e' }}>{evt.eventType}</p>
-                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${statusColors[evt.status] || 'bg-gray-50 text-gray-500'}`}>{evt.status}</span>
+        {!isLoading && events.length === 0 && (
+          <div className="rounded-2xl p-12 text-center" style={{ background: 'white', boxShadow: '0 2px 12px -4px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.04)' }}>
+            <Calendar className="w-12 h-12 mx-auto mb-3" style={{ color: '#CBD5E1' }} />
+            <p className="text-sm font-semibold mb-1" style={{ color: '#1a1a2e' }}>No events yet</p>
+            <p className="text-xs mb-4" style={{ color: '#94A3B8' }}>Start planning your first event</p>
+            <button onClick={() => navigate('/planner')}
+              className="px-6 py-2.5 rounded-xl text-xs font-bold text-white"
+              style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)' }}>
+              Plan an Event
+            </button>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {events.map(evt => {
+            const st = statusConfig[evt.status] || statusConfig.planning;
+            return (
+              <div key={evt.id} onClick={() => navigate(`/track/${evt.id}`)}
+                className="rounded-2xl p-5 cursor-pointer transition-all hover:-translate-y-0.5"
+                style={{ background: 'white', boxShadow: '0 2px 12px -4px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.04)' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: st.bg }}>
+                      <st.icon className="w-5 h-5" style={{ color: st.color }} />
                     </div>
-                    <p className="text-[11px]" style={{ color: '#94A3B8' }}>{evt.eventDate} | {evt.guestCount} guests | {evt.province}</p>
+                    <div>
+                      <h3 className="text-sm font-bold" style={{ color: '#1a1a2e' }}>{evt.name}</h3>
+                      <p className="text-[11px]" style={{ color: '#94A3B8' }}>{evt.date} &middot; {evt.province}</p>
+                    </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-bold" style={{ color: '#1a1a2e' }}>R {evt.budget.toLocaleString('en-ZA')}</p>
-                    <button onClick={() => navigate(`/client/track/${evt.id}`)} className="text-[10px] font-semibold flex items-center gap-1" style={{ color: '#2BBCA8' }}>Track <ArrowRight className="w-3 h-3" /></button>
+                  <span className="px-2.5 py-1 rounded-full text-[9px] font-bold" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+                </div>
+
+                {/* Budget Bar */}
+                <div className="mb-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px]" style={{ color: '#94A3B8' }}>Budget</span>
+                    <span className="text-[10px] font-bold" style={{ color: '#1a1a2e' }}>R{evt.spent.toLocaleString()} / R{evt.budget.toLocaleString()}</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: '#F1F5F9' }}>
+                    <div className="h-full rounded-full transition-all" style={{ width: `${Math.min((evt.spent / evt.budget) * 100, 100)}%`, background: 'linear-gradient(90deg, #2BBCA8, #10B981)' }} />
                   </div>
                 </div>
-              ))
-            )}
-          </div>
-        )}
 
-        {activeTab === 'quotes' && (
-          <div className="rounded-2xl p-12 text-center" style={{ background: 'white', boxShadow: '0 2px 12px -4px rgba(0,0,0,0.08)' }}>
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'linear-gradient(135deg, #8B5CF6, #7C3AED)' }}>
-              <MessageCircle className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-lg font-bold mb-2" style={{ color: '#1a1a2e' }}>Quote Requests</h3>
-            <p className="text-sm" style={{ color: '#64748B' }}>Quotes from vendors will appear here once you plan an event.</p>
-          </div>
-        )}
+                {/* Quick Stats */}
+                <div className="flex items-center gap-4 text-[11px]" style={{ color: '#94A3B8' }}>
+                  <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {evt.guests} guests</span>
+                  <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" /> R{evt.budget.toLocaleString()}</span>
+                  <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> {evt.items.length} items</span>
+                </div>
 
-        {activeTab === 'bookings' && (
-          <div className="rounded-2xl p-12 text-center" style={{ background: 'white', boxShadow: '0 2px 12px -4px rgba(0,0,0,0.08)' }}>
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'linear-gradient(135deg, #10B981, #059669)' }}>
-              <CheckCircle className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-lg font-bold mb-2" style={{ color: '#1a1a2e' }}>Confirmed Bookings</h3>
-            <p className="text-sm" style={{ color: '#64748B' }}>Your confirmed vendor bookings will appear here.</p>
-          </div>
-        )}
+                {/* Items */}
+                {evt.items.length > 0 && (
+                  <div className="mt-3 pt-3 flex flex-wrap gap-1.5" style={{ borderTop: '1px solid #F1F5F9' }}>
+                    {evt.items.map((item, idx) => (
+                      <span key={idx} className="text-[9px] px-2 py-0.5 rounded-full font-medium" style={{
+                        background: item.status === 'booked' || item.status === 'completed' ? '#ECFDF5' : item.status === 'accepted' ? '#FFFBEB' : '#F1F5F9',
+                        color: item.status === 'booked' || item.status === 'completed' ? '#059669' : item.status === 'accepted' ? '#D97706' : '#64748B'
+                      }}>
+                        {item.category}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </ClientLayout>
   );

@@ -1,191 +1,274 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ClientLayout } from '@/components/ClientLayout';
+import { useUnified } from '@/context/UnifiedContext';
+import { trpc } from '@/providers/trpc';
 import {
-  Send, Sparkles, MapPin, Users, Wallet,
-  CheckCircle
+  ChevronRight, CheckCircle, Loader2, Calendar,
+  MapPin, Users, DollarSign, Sparkles
 } from 'lucide-react';
 
-/* ... existing helper functions and data ... */
-const EVENT_TYPES = ['Wedding', 'Funeral', 'Birthday', 'uMgidi', 'uMemulo', 'Lobola', 'Traditional Wedding', '21st Birthday'];
-const PROVINCES = ['Gauteng', 'KwaZulu-Natal', 'Western Cape', 'Eastern Cape', 'Free State', 'Mpumalanga', 'Limpopo', 'North West', 'Northern Cape'];
-const AREAS: Record<string, string[]> = {
-  'Gauteng': ['Johannesburg', 'Soweto', 'Sandton', 'Pretoria', 'Tembisa', 'Alexandra', 'Midrand', 'Randburg', 'Centurion', 'Benoni', 'Vosloorus', 'Katlehong'],
-  'KwaZulu-Natal': ['Durban', 'Umlazi', 'Umhlanga', 'Pinetown', 'KwaMashu', 'Chatsworth', 'Phoenix', 'Newcastle'],
-  'Western Cape': ['Cape Town', 'Khayelitsha', 'Mitchells Plain', 'Bellville', 'Stellenbosch', 'Gugulethu', 'Paarl'],
-  'Eastern Cape': ['Port Elizabeth', 'East London', 'Uitenhage', 'Mthatha', 'Mdantsane'],
-  'Free State': ['Bloemfontein', 'Welkom', 'Sasolburg'],
-  'Mpumalanga': ['Nelspruit', 'Witbank', 'Secunda'],
-  'Limpopo': ['Polokwane', 'Thohoyandou', 'Tzaneen'],
-  'North West': ['Rustenburg', 'Mahikeng', 'Potchefstroom'],
-  'Northern Cape': ['Kimberley', 'Upington'],
-};
-const GUEST_COUNTS = ['Under 20', '20-50', '50-100', '100-200', '200-500', '500+'];
-const BUDGETS = ['Under R5,000', 'R5,000-R15,000', 'R15,000-R30,000', 'R30,000-R50,000', 'R50,000-R100,000', 'R100,000+'];
-
-/* Simple step-driven planner */
-function StepPlanner({ onComplete }: { onComplete: (plan: any) => void }) {
-  const [step, setStep] = useState(0);
-  const [data, setData] = useState({ eventType: '', province: '', area: '', guests: '', budget: '', date: '' });
-  const steps = [
-    { label: 'Event Type', options: EVENT_TYPES, field: 'eventType' as const, icon: Sparkles },
-    { label: 'Province', options: PROVINCES, field: 'province' as const, icon: MapPin },
-    { label: 'Area', options: data.province ? AREAS[data.province] || [] : [], field: 'area' as const, icon: MapPin },
-    { label: 'Guests', options: GUEST_COUNTS, field: 'guests' as const, icon: Users },
-    { label: 'Budget', options: BUDGETS, field: 'budget' as const, icon: Wallet },
-  ];
-
-  const selectOption = (value: string) => {
-    const newData = { ...data, [steps[step].field]: value };
-    setData(newData);
-    if (step < steps.length - 1) {
-      setStep(step + 1);
-    } else {
-      onComplete(newData);
-    }
-  };
-
-  const current = steps[step];
-
-  return (
-    <div className="space-y-6">
-      {/* Progress */}
-      <div className="flex items-center gap-2 mb-4">
-        {steps.map((_step, i) => (
-          <div key={i} className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: '#F1F5F9' }}>
-            <div className="h-full rounded-full transition-all duration-500" style={{ width: i <= step ? '100%' : '0%', background: i <= step ? '#2BBCA8' : '#E2E8F0' }} />
-          </div>
-        ))}
-      </div>
-      <p className="text-sm font-medium" style={{ color: '#94A3B8' }}>Step {step + 1} of {steps.length}</p>
-
-      {/* Question */}
-      <div className="flex items-center gap-3 mb-2">
-        <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)' }}>
-          <current.icon className="w-6 h-6 text-white" />
-        </div>
-        <h3 className="text-xl font-bold" style={{ color: '#1a1a2e' }}>What is your {current.label}?</h3>
-      </div>
-
-      {/* Options */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {current.options.map(opt => (
-          <button key={opt} onClick={() => selectOption(opt)}
-            className="p-4 rounded-xl text-left transition-all hover:-translate-y-0.5 text-sm font-semibold"
-            style={{ background: 'white', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px -2px rgba(0,0,0,0.06)', color: '#1a1a2e' }}>
-            {opt}
-          </button>
-        ))}
-      </div>
-
-      {step > 0 && (
-        <button onClick={() => setStep(step - 1)} className="text-sm font-medium" style={{ color: '#94A3B8' }}>Back</button>
-      )}
-    </div>
-  );
-}
+const EVENT_TYPES = ['Wedding', 'Funeral', 'Birthday', 'Umgidi/Traditional', 'Baby Shower', 'Lobola', 'Corporate Event', 'Graduation'];
+const PROVINCES = ['Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Free State', 'Mpumalanga', 'Limpopo', 'North West', 'Northern Cape'];
+const GUEST_OPTIONS = ['Under 20', '20-50', '50-100', '100-200', '200-500', '500+'];
+const BUDGET_OPTIONS = [
+  { label: 'Under R5,000', value: 5000 },
+  { label: 'R5,000 - R15,000', value: 15000 },
+  { label: 'R15,000 - R30,000', value: 30000 },
+  { label: 'R30,000 - R60,000', value: 60000 },
+  { label: 'R60,000 - R100,000', value: 100000 },
+  { label: 'R100,000+', value: 150000 },
+];
 
 export function ConversationalPlanner() {
   const navigate = useNavigate();
-  const [plan, setPlan] = useState<any>(null);
-  const [showQuotes, setShowQuotes] = useState(false);
+  const { clientUser } = useUnified();
 
-  const handleComplete = (data: any) => {
-    const budgetNum = data.budget.includes('100,000') ? 100000 : data.budget.includes('50,000') ? 50000 : data.budget.includes('30,000') ? 30000 : data.budget.includes('15,000') ? 15000 : data.budget.includes('5,000') ? 5000 : 50000;
-    const newPlan = {
-      id: `evt_${Date.now()}`,
-      clientId: 'demo', clientName: 'Demo User',
-      eventType: data.eventType, province: data.province, area: data.area,
-      eventDate: new Date().toISOString().split('T')[0],
-      guestCount: data.guests, budget: budgetNum,
-      status: 'planning' as const,
-      items: [
-        { id: '1', category: 'Venue', service: 'Venue & Decor', vendorName: 'Royal Events SA', price: Math.round(budgetNum * 0.3), status: 'pending' as const, rating: 4.9 },
-        { id: '2', category: 'Catering', service: 'Catering & Food', vendorName: 'Braai Masters', price: Math.round(budgetNum * 0.4), status: 'pending' as const, rating: 4.7 },
-        { id: '3', category: 'Entertainment', service: 'DJ & Sound', vendorName: 'DJ Maphorisa Ent', price: Math.round(budgetNum * 0.15), status: 'pending' as const, rating: 4.8 },
-        { id: '4', category: 'Photography', service: 'Photo & Video', vendorName: 'Glam Squad SA', price: Math.round(budgetNum * 0.1), status: 'pending' as const, rating: 4.6 },
-      ],
-      totalCost: 0, vendorResponses: [], messages: [],
-    };
-    setPlan(newPlan);
+  // API
+  const createClient = trpc.spClient.create.useMutation();
+  const createEvent = trpc.event.create.useMutation({
+    onSuccess: () => navigate('/my-events'),
+  });
+
+  const [step, setStep] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const [done, setDone] = useState(false);
+  const [form, setForm] = useState({
+    name: '',
+    phone: clientUser?.phone ?? '',
+    eventType: '',
+    province: '',
+    city: '',
+    eventDate: '',
+    guestCount: '',
+    budget: 0,
+    notes: '',
+  });
+
+  const update = (field: string, value: string | number) => setForm(prev => ({ ...prev, [field]: value }));
+
+  const steps = [
+    { title: 'Event Type', icon: Calendar },
+    { title: 'Location', icon: MapPin },
+    { title: 'Date', icon: Calendar },
+    { title: 'Guests', icon: Users },
+    { title: 'Budget', icon: DollarSign },
+  ];
+
+  const canNext = () => {
+    if (step === 0) return form.eventType;
+    if (step === 1) return form.province;
+    if (step === 2) return form.eventDate;
+    if (step === 3) return form.guestCount;
+    if (step === 4) return form.budget > 0;
+    return false;
   };
 
-  const sendQuotes = () => {
-    const requests = JSON.parse(localStorage.getItem('sp_quote_requests') || '[]');
-    requests.push({ ...plan, sentAt: new Date().toISOString() });
-    localStorage.setItem('sp_quote_requests', JSON.stringify(requests));
-    setShowQuotes(true);
+  const handleCreate = async () => {
+    if (creating) return;
+    setCreating(true);
+
+    try {
+      // Ensure client exists
+      let clientId = 0;
+      if (clientUser?.phone) {
+        // Try to find existing client
+        const existing = await createClient.mutateAsync({
+          name: clientUser.name || form.name || 'Anonymous',
+          phone: clientUser.phone,
+        });
+        clientId = existing.id as number;
+      } else if (form.phone) {
+        const newClient = await createClient.mutateAsync({
+          name: form.name || 'Anonymous',
+          phone: form.phone,
+        });
+        clientId = newClient.id as number;
+      }
+
+      if (clientId === 0) {
+        throw new Error('Client creation failed');
+      }
+
+      // Parse guest count
+      const guestNum = form.guestCount.includes('+') ? 500 :
+        form.guestCount.includes('-') ? parseInt(form.guestCount.split('-')[1]) :
+        parseInt(form.guestCount);
+
+      // Create event
+      await createEvent.mutateAsync({
+        clientId,
+        clientName: form.name || clientUser?.name || 'Anonymous',
+        clientPhone: clientUser?.phone || form.phone,
+        eventType: form.eventType,
+        eventDate: form.eventDate,
+        guestCount: isNaN(guestNum) ? 50 : guestNum,
+        province: form.province,
+        city: form.city || undefined,
+        budget: form.budget,
+        notes: form.notes || undefined,
+        items: [
+          { category: 'Catering' },
+          { category: 'Venue' },
+          { category: 'Decor' },
+          { category: 'Music / DJ' },
+        ],
+      });
+
+      setDone(true);
+    } catch (err) {
+      console.error('Event creation failed:', err);
+      setCreating(false);
+    }
   };
+
+  // ─── Done Screen ───
+  if (done) {
+    return (
+      <ClientLayout title="Event Created">
+        <div className="max-w-md mx-auto pt-12 text-center">
+          <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5"
+            style={{ background: '#ECFDF5', boxShadow: '0 4px 12px -3px rgba(16,185,129,0.2)' }}>
+            <CheckCircle className="w-10 h-10" style={{ color: '#10B981' }} />
+          </div>
+          <h2 className="text-2xl font-bold mb-2" style={{ color: '#1a1a2e' }}>Plan Created!</h2>
+          <p className="text-sm mb-2" style={{ color: '#64748B' }}>Your {form.eventType} plan has been saved.</p>
+          <p className="text-sm font-semibold mb-6" style={{ color: '#2BBCA8' }}>We will send you quotes from verified vendors shortly.</p>
+          <div className="space-y-2">
+            <button onClick={() => navigate('/my-events')}
+              className="w-full py-3 rounded-xl text-sm font-bold text-white"
+              style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)' }}>View My Events</button>
+            <button onClick={() => navigate('/browse')}
+              className="w-full py-3 rounded-xl text-sm font-bold" style={{ background: '#F1F5F9', color: '#64748B' }}>Browse Vendors</button>
+          </div>
+        </div>
+      </ClientLayout>
+    );
+  }
 
   return (
     <ClientLayout title="Plan Your Event">
-      <div className="max-w-3xl mx-auto">
-        {!plan ? (
-          <StepPlanner onComplete={handleComplete} />
-        ) : !showQuotes ? (
-          <div className="space-y-6">
-            <div className="rounded-2xl p-6" style={{ background: 'linear-gradient(135deg, #F0FDFA, #ECFDF5)', border: '1px solid #A7F3D0' }}>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)' }}>
-                  <CheckCircle className="w-5 h-5 text-white" />
-                </div>
-                <h3 className="text-lg font-bold" style={{ color: '#1a1a2e' }}>Your Plan is Ready</h3>
+      <div className="max-w-lg mx-auto">
+        {/* Progress */}
+        <div className="flex items-center gap-2 mb-8 mt-4">
+          {steps.map((_step, i) => (
+            <div key={i} className="flex items-center gap-2 flex-1">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                step === i ? 'text-white' : step > i ? 'text-white' : ''
+              }`} style={step === i ? { background: '#2BBCA8' } : step > i ? { background: '#10B981' } : { background: '#E2E8F0', color: '#94A3B8' }}>
+                {step > i ? <CheckCircle className="w-4 h-4" /> : i + 1}
               </div>
-              <p className="text-sm mb-4" style={{ color: '#64748B' }}>We have matched you with vendors for your <strong>{plan.eventType}</strong> in <strong>{plan.area}</strong>.</p>
+              {i < 4 && <div className="flex-1 h-0.5 rounded-full" style={{ background: step > i ? '#10B981' : '#E2E8F0' }} />}
             </div>
+          ))}
+        </div>
 
-            {/* Matched Vendors */}
-            <h4 className="text-sm font-bold" style={{ color: '#1a1a2e' }}>Matched Vendors</h4>
-            <div className="space-y-3">
-              {plan.items.map((item: any, i: number) => (
-                <div key={i} className="rounded-xl p-4 flex items-center gap-4" style={{ background: 'white', boxShadow: '0 2px 8px -2px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.04)' }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, rgba(43,188,168,0.1), rgba(245,158,11,0.1))' }}>
-                    <Sparkles className="w-5 h-5" style={{ color: '#2BBCA8' }} />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold" style={{ color: '#1a1a2e' }}>{item.vendorName}</p>
-                    <p className="text-[11px]" style={{ color: '#94A3B8' }}>{item.service}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold" style={{ color: '#1a1a2e' }}>R {item.price.toLocaleString('en-ZA')}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {/* Step Title */}
+        <div className="mb-6">
+          <h2 className="text-xl font-bold" style={{ color: '#1a1a2e' }}>{steps[step].title}</h2>
+          <p className="text-xs" style={{ color: '#94A3B8' }}>Step {step + 1} of {steps.length}</p>
+        </div>
 
-            <div className="rounded-xl p-4" style={{ background: '#F0FDFA', border: '1px solid #A7F3D0' }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-medium" style={{ color: '#64748B' }}>Total Estimated</p>
-                  <p className="text-lg font-bold" style={{ color: '#1a1a2e' }}>R {plan.items.reduce((sum: number, it: any) => sum + it.price, 0).toLocaleString('en-ZA')}</p>
-                </div>
-                <p className="text-[10px]" style={{ color: '#64748B' }}>of R {plan.budget.toLocaleString('en-ZA')} budget</p>
-              </div>
-            </div>
-
-            <button onClick={sendQuotes}
-              className="w-full py-4 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"
-              style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)', boxShadow: '0 8px 20px -4px rgba(43,188,168,0.3)' }}>
-              <Send className="w-5 h-5" /> Send Quotes to Vendors
-            </button>
+        {/* Step 0: Event Type */}
+        {step === 0 && (
+          <div className="grid grid-cols-2 gap-3">
+            {EVENT_TYPES.map(et => (
+              <button key={et} onClick={() => update('eventType', et)}
+                className="p-4 rounded-2xl text-sm font-semibold text-center transition-all border"
+                style={form.eventType === et ? { background: '#F0FDFA', color: '#2BBCA8', borderColor: '#A7F3D0' } : { background: 'white', color: '#64748B', borderColor: '#E2E8F0' }}>
+                {et}
+              </button>
+            ))}
           </div>
-        ) : (
-          <div className="text-center py-16">
-            <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6" style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)' }}>
-              <CheckCircle className="w-10 h-10 text-white" />
+        )}
+
+        {/* Step 1: Location */}
+        {step === 1 && (
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold mb-2 block" style={{ color: '#475569' }}>Province</label>
+              <div className="grid grid-cols-2 gap-2">
+                {PROVINCES.map(p => (
+                  <button key={p} onClick={() => update('province', p)}
+                    className="p-3 rounded-xl text-xs font-semibold text-center transition-all border"
+                    style={form.province === p ? { background: '#F0FDFA', color: '#2BBCA8', borderColor: '#A7F3D0' } : { background: 'white', color: '#64748B', borderColor: '#E2E8F0' }}>
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
-            <h2 className="text-2xl font-bold mb-3" style={{ color: '#1a1a2e' }}>Quotes Sent</h2>
-            <p className="text-sm mb-2" style={{ color: '#64748B' }}>Your {plan.eventType} plan has been sent to vendors.</p>
-            <p className="text-sm mb-6" style={{ color: '#94A3B8' }}>Vendors typically respond within 24 hours.</p>
-            <div className="flex gap-3 justify-center">
-              <button onClick={() => navigate('/client')}
-                className="px-6 py-3 rounded-xl text-sm font-bold text-white"
-                style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)' }}>View Dashboard</button>
-              <button onClick={() => setPlan(null)}
-                className="px-6 py-3 rounded-xl text-sm font-bold" style={{ color: '#2BBCA8', border: '1.5px solid #2BBCA8' }}>Plan Another</button>
+            <div>
+              <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#475569' }}>City/Area (optional)</label>
+              <input value={form.city} onChange={e => update('city', e.target.value)} placeholder="e.g. Sandton"
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none" style={{ background: 'white', border: '1px solid #E2E8F0', color: '#1a1a2e' }} />
             </div>
           </div>
         )}
+
+        {/* Step 2: Date */}
+        {step === 2 && (
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#475569' }}>Event Date</label>
+              <input type="date" value={form.eventDate} onChange={e => update('eventDate', e.target.value)}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none" style={{ background: 'white', border: '1px solid #E2E8F0', color: '#1a1a2e' }} />
+            </div>
+            <div>
+              <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#475569' }}>Special Requests (optional)</label>
+              <textarea value={form.notes} onChange={e => update('notes', e.target.value)} placeholder="Any special requirements..." rows={3}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none" style={{ background: 'white', border: '1px solid #E2E8F0', color: '#1a1a2e' }} />
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Guests */}
+        {step === 3 && (
+          <div className="grid grid-cols-2 gap-3">
+            {GUEST_OPTIONS.map(gc => (
+              <button key={gc} onClick={() => update('guestCount', gc)}
+                className="p-4 rounded-2xl text-sm font-semibold text-center transition-all border"
+                style={form.guestCount === gc ? { background: '#F0FDFA', color: '#2BBCA8', borderColor: '#A7F3D0' } : { background: 'white', color: '#64748B', borderColor: '#E2E8F0' }}>
+                {gc}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Step 4: Budget */}
+        {step === 4 && (
+          <div className="space-y-3">
+            {BUDGET_OPTIONS.map(b => (
+              <button key={b.value} onClick={() => update('budget', b.value)}
+                className="w-full p-4 rounded-2xl text-left transition-all border flex items-center justify-between"
+                style={form.budget === b.value ? { background: '#F0FDFA', color: '#2BBCA8', borderColor: '#A7F3D0' } : { background: 'white', color: '#64748B', borderColor: '#E2E8F0' }}>
+                <span className="text-sm font-semibold">{b.label}</span>
+                {form.budget === b.value && <CheckCircle className="w-5 h-5" style={{ color: '#2BBCA8' }} />}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Navigation */}
+        <div className="flex gap-3 mt-8">
+          {step > 0 && (
+            <button onClick={() => setStep(s => s - 1)}
+              className="px-5 py-3.5 rounded-xl text-sm font-bold" style={{ background: '#F1F5F9', color: '#64748B' }}>Back</button>
+          )}
+          {step < 4 ? (
+            <button onClick={() => setStep(s => s + 1)} disabled={!canNext()}
+              className="flex-1 py-3.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)', boxShadow: '0 4px 12px -3px rgba(43,188,168,0.3)' }}>
+              Next <ChevronRight className="w-4 h-4" />
+            </button>
+          ) : (
+            <button onClick={handleCreate} disabled={creating || !canNext()}
+              className="flex-1 py-3.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)', boxShadow: '0 4px 12px -3px rgba(43,188,168,0.3)' }}>
+              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {creating ? 'Creating...' : 'Create My Plan'}
+            </button>
+          )}
+        </div>
       </div>
     </ClientLayout>
   );

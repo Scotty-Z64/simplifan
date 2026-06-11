@@ -30,7 +30,7 @@ export function VendorLogin() {
     e.preventDefault();
     setError('');
     if (!email || !password) { setError('Please fill in all fields'); return; }
-    loginVendor(email, password);
+    loginVendor('1'); // Demo login - logs in as first vendor
     navigate('/vendor');
   };
 

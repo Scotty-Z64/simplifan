@@ -1,54 +1,36 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { VendorLayout } from '@/components/VendorLayout';
+import { useUnified } from '@/context/UnifiedContext';
+import { trpc } from '@/providers/trpc';
 import {
   DollarSign, TrendingUp, TrendingDown, Wallet,
   Receipt, Calendar, CheckCircle, AlertCircle,
-  PieChart as PieIcon
+  PieChart as PieIcon, Loader2
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
-interface EarningRecord {
-  id: string;
-  bookingId: string;
-  clientName: string;
-  eventType: string;
-  eventDate: string;
-  grossAmount: number;
-  platformFee: number;
-  netAmount: number;
-  status: 'pending' | 'paid_out' | 'held';
-  paidAt?: string;
-  createdAt: string;
-}
-
-function getEarnings(): EarningRecord[] {
-  const stored = JSON.parse(localStorage.getItem('sp_vendor_earnings') || '[]');
-  if (stored.length === 0) return seedDemoEarnings();
-  return stored;
-}
-
-function seedDemoEarnings(): EarningRecord[] {
-  const demo: EarningRecord[] = [
-    { id: 'earn_1', bookingId: 'bk_1', clientName: 'Thabo Mokoena', eventType: 'Wedding', eventDate: '2026-05-20', grossAmount: 25000, platformFee: 1250, netAmount: 23750, status: 'paid_out', paidAt: '2026-05-22', createdAt: '2026-05-15' },
-    { id: 'earn_2', bookingId: 'bk_2', clientName: 'Lerato Khumalo', eventType: 'Funeral', eventDate: '2026-06-10', grossAmount: 15000, platformFee: 750, netAmount: 14250, status: 'paid_out', paidAt: '2026-06-12', createdAt: '2026-06-05' },
-    { id: 'earn_3', bookingId: 'bk_3', clientName: 'Sipho Ndlovu', eventType: 'Birthday', eventDate: '2026-06-25', grossAmount: 8000, platformFee: 400, netAmount: 7600, status: 'held', createdAt: '2026-06-15' },
-    { id: 'earn_4', bookingId: 'bk_4', clientName: 'Mary van Wyk', eventType: 'Baby Shower', eventDate: '2026-07-05', grossAmount: 4500, platformFee: 0, netAmount: 4500, status: 'pending', createdAt: '2026-06-18' },
-  ];
-  localStorage.setItem('sp_vendor_earnings', JSON.stringify(demo));
-  return demo;
-}
-
 export function VendorEarnings() {
-  const [earnings] = useState<EarningRecord[]>(getEarnings());
+  const { vendorUser } = useUnified();
+  const vendorId = vendorUser ? parseInt(vendorUser.id) : 0;
+
+  // ─── API Data ───
+  const { data: earnings, isLoading } = trpc.payment.vendorEarnings.useQuery(
+    { vendorId },
+    { enabled: vendorId > 0 }
+  );
 
   const stats = useMemo(() => {
-    const totalGross = earnings.reduce((s, e) => s + e.grossAmount, 0);
-    const totalFees = earnings.reduce((s, e) => s + e.platformFee, 0);
-    const totalNet = earnings.reduce((s, e) => s + e.netAmount, 0);
-    const paidOut = earnings.filter(e => e.status === 'paid_out').reduce((s, e) => s + e.netAmount, 0);
-    const held = earnings.filter(e => e.status === 'held').reduce((s, e) => s + e.netAmount, 0);
-    const pending = earnings.filter(e => e.status === 'pending').reduce((s, e) => s + e.netAmount, 0);
-    return { totalGross, totalFees, totalNet, paidOut, held, pending, bookingCount: earnings.length };
+    if (!earnings) {
+      return { totalGross: 0, totalFees: 0, totalNet: 0, paidOut: 0, held: 0, pending: 0, bookingCount: 0 };
+    }
+    const totalGross = earnings.totalGross ?? 0;
+    const totalFees = earnings.totalFees ?? 0;
+    const totalNet = earnings.totalNet ?? 0;
+    const payments = earnings.payments ?? [];
+    const paidOut = payments.filter((e: any) => e.status === 'completed' && e.type !== 'platform_fee').reduce((s: number, e: any) => s + Number(e.amount), 0);
+    const held = payments.filter((e: any) => e.status === 'pending').reduce((s: number, e: any) => s + Number(e.amount), 0);
+    const pending = payments.filter((e: any) => e.type === 'platform_fee').reduce((s: number, e: any) => s + Number(e.amount), 0);
+    return { totalGross, totalFees, totalNet, paidOut, held, pending, bookingCount: payments.length };
   }, [earnings]);
 
   const feeBreakdown = [
@@ -56,16 +38,28 @@ export function VendorEarnings() {
     { name: 'Platform Fee', value: stats.totalFees, color: '#F59E0B' },
   ];
 
+  const payments = earnings?.payments ?? [];
+
+  if (isLoading) {
+    return (
+      <VendorLayout title="My Earnings">
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#2BBCA8' }} />
+        </div>
+      </VendorLayout>
+    );
+  }
+
   return (
     <VendorLayout title="My Earnings">
       <div className="max-w-4xl mx-auto space-y-5">
-        {/* Total Earnings Card */}
+        {/* Total */}
         <div className="rounded-2xl p-6" style={{ background: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)', border: '1px solid #A7F3D0' }}>
           <p className="text-xs font-semibold mb-1" style={{ color: '#6EE7B7' }}>Total Net Earnings</p>
           <p className="text-3xl font-bold" style={{ color: '#059669' }}>R{stats.totalNet.toLocaleString()}</p>
           <div className="flex items-center gap-1 mt-2">
             <TrendingUp className="w-4 h-4" style={{ color: '#10B981' }} />
-            <span className="text-xs font-semibold" style={{ color: '#10B981' }}>{stats.bookingCount} bookings</span>
+            <span className="text-xs font-semibold" style={{ color: '#10B981' }}>{stats.bookingCount} transactions</span>
           </div>
         </div>
 
@@ -85,7 +79,7 @@ export function VendorEarnings() {
           ))}
         </div>
 
-        {/* Fee Transparency */}
+        {/* Fee Chart */}
         <div className="rounded-2xl p-6" style={{ background: 'white', boxShadow: '0 2px 12px -4px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.04)' }}>
           <h3 className="text-sm font-bold mb-4 flex items-center gap-2" style={{ color: '#1a1a2e' }}>
             <PieIcon className="w-4 h-4" style={{ color: '#2BBCA8' }} /> Where Your Money Goes
@@ -120,23 +114,25 @@ export function VendorEarnings() {
           </div>
         </div>
 
-        {/* Per-Booking Breakdown */}
+        {/* Transactions */}
         <div className="rounded-2xl p-6" style={{ background: 'white', boxShadow: '0 2px 12px -4px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.04)' }}>
-          <h3 className="text-sm font-bold mb-4" style={{ color: '#1a1a2e' }}>Booking Breakdown</h3>
+          <h3 className="text-sm font-bold mb-4" style={{ color: '#1a1a2e' }}>Transactions</h3>
           <div className="space-y-3">
-            {earnings.map(e => (
-              <div key={e.id} className="flex items-center gap-4 p-4 rounded-xl" style={{ background: '#F8FAFC' }}>
+            {payments.length === 0 && (
+              <p className="text-sm text-center py-8" style={{ color: '#94A3B8' }}>No transactions yet</p>
+            )}
+            {payments.map((p: any) => (
+              <div key={p.id} className="flex items-center gap-4 p-4 rounded-xl" style={{ background: '#F8FAFC' }}>
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: e.status === 'paid_out' ? '#ECFDF5' : e.status === 'held' ? '#FFFBEB' : '#F1F5F9' }}>
-                  {e.status === 'paid_out' ? <CheckCircle className="w-5 h-5" style={{ color: '#10B981' }} /> : e.status === 'held' ? <AlertCircle className="w-5 h-5" style={{ color: '#F59E0B' }} /> : <Calendar className="w-5 h-5" style={{ color: '#94A3B8' }} />}
+                  style={{ background: p.status === 'completed' ? '#ECFDF5' : p.status === 'pending' ? '#FFFBEB' : '#F1F5F9' }}>
+                  {p.status === 'completed' ? <CheckCircle className="w-5 h-5" style={{ color: '#10B981' }} /> : p.status === 'pending' ? <AlertCircle className="w-5 h-5" style={{ color: '#F59E0B' }} /> : <Calendar className="w-5 h-5" style={{ color: '#94A3B8' }} />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate" style={{ color: '#1a1a2e' }}>{e.clientName}</p>
-                  <p className="text-[11px]" style={{ color: '#94A3B8' }}>{e.eventType} &middot; {e.eventDate}</p>
+                  <p className="text-sm font-semibold truncate" style={{ color: '#1a1a2e' }}>{p.type}</p>
+                  <p className="text-[11px]" style={{ color: '#94A3B8' }}>{p.status} &middot; {new Date(p.createdAt).toLocaleDateString()}</p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-bold" style={{ color: '#1a1a2e' }}>R{e.netAmount.toLocaleString()}</p>
-                  <p className="text-[10px]" style={{ color: '#94A3B8' }}>R{e.grossAmount.toLocaleString()} - R{e.platformFee} fee</p>
+                  <p className="text-sm font-bold" style={{ color: '#1a1a2e' }}>R{Number(p.amount).toLocaleString()}</p>
                 </div>
               </div>
             ))}
