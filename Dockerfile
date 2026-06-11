@@ -1,17 +1,20 @@
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /app
 
-# Copy package files first (for caching)
+# Install Python and build tools (needed for some npm packages)
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+
+# Copy package files
 COPY package.json package-lock.json* ./
 
-# Install ALL dependencies (including dev deps needed for build)
+# Install dependencies
 RUN npm ci
 
 # Copy source code
 COPY . .
 
-# Build the project (creates dist/boot.js and dist/public)
+# Build the project
 RUN npm run build
 
 EXPOSE 3000
