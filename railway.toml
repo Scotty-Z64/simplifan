@@ -1,13 +1,8 @@
 [build]
-builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+builder = "nixpacks"
 
 [deploy]
-startCommand = "node dist/boot.js"
+startCommand = "npm start"
 healthcheckPath = "/api/trpc/ping"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 3
-
-[environments.production]
-numReplicas = 1
