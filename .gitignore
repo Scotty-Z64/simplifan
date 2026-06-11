@@ -4,9 +4,6 @@
 .env.*.local
 
 # Database
-*.db
-*.sqlite
-*.sqlite3
 db/migrations/*.sql
 
 # TypeScript cache
@@ -18,7 +15,10 @@ build/
 
 # Test coverage
 coverage/
-.nyc_output/
+
+# Dependencies
+node_modules/
 
 # Logs
 *.log
+npm-debug.log*
