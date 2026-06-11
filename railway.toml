@@ -1,7 +1,0 @@
-[build]
-builder = "dockerfile"
-
-[deploy]
-startCommand = "node dist/boot.js"
-healthcheckPath = "/api/trpc/ping"
-restartPolicyType = "on_failure"
