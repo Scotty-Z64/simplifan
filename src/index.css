@@ -1,0 +1,535 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* SimpliPlan Brand Palette - Light Theme */
+    --background: 214 24% 94%;
+    --foreground: 220 25% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 12%;
+    --primary: 168 66% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 20% 90%;
+    --secondary-foreground: 220 25% 12%;
+    --muted: 214 20% 90%;
+    --muted-foreground: 220 10% 45%;
+    --accent: 168 66% 45%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 214 20% 86%;
+    --input: 214 20% 90%;
+    --ring: 168 66% 45%;
+    --radius: 0.75rem;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 25% 12%;
+    --sidebar-primary: 168 66% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 214 20% 95%;
+    --sidebar-accent-foreground: 220 25% 12%;
+    --sidebar-border: 214 20% 90%;
+    --sidebar-ring: 168 66% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', sans-serif;
+  }
+}
+
+/* Custom scrollbar - SimpliPlan teal */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, hsl(168 66% 45%), hsl(168 66% 45% / 0.3));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(168 66% 45%);
+}
+
+/* Glassmorphism for light theme */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Gradient text - SimpliPlan teal */
+.gradient-text {
+  background: linear-gradient(135deg, #2BBCA8 0%, #1E9B8A 50%, #2BBCA8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glow effects */
+.glow {
+  box-shadow: 0 0 20px hsl(168 66% 45% / 0.3), 0 0 40px hsl(168 66% 45% / 0.1);
+}
+
+.glow-text {
+  text-shadow: 0 0 20px hsl(168 66% 45% / 0.3);
+}
+
+/* Animated gradient background */
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.animated-gradient {
+  background: linear-gradient(-45deg, #E8EDF2, #D4E5E0, #E8EDF2, #F0F4F8);
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+/* Floating animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Pulse glow */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 5px hsl(168 66% 45% / 0.3); }
+  50% { box-shadow: 0 0 20px hsl(168 66% 45% / 0.4), 0 0 40px hsl(168 66% 45% / 0.1); }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* Slide up animation */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s ease-out forwards;
+}
+
+/* Card hover effect */
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.12);
+}
+
+/* SimpliPlan button style */
+.btn-simpliplan {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, #2BBCA8, #25A898);
+}
+
+.btn-simpliplan::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  transition: left 0.5s ease;
+}
+
+.btn-simpliplan:hover::before {
+  left: 100%;
+}
+
+.btn-simpliplan:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 25px -5px rgba(43, 188, 168, 0.4);
+}
+
+/* Grid pattern overlay - subtle for light theme */
+.grid-pattern {
+  background-image: 
+    linear-gradient(rgba(43, 188, 168, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(43, 188, 168, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+/* Stats counter animation */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Smooth page transitions */
+.page-transition {
+  animation: slideUp 0.4s ease-out;
+}
+
+/* Badge gold/amber style */
+.badge-gold {
+  background: linear-gradient(135deg, #D4A017, #F5A623);
+  color: white;
+}
+
+/* ═══════════════════════════════════════════
+   SIMPLIPLAN PREMIUM VISUAL SYSTEM
+   ═══════════════════════════════════════════ */
+
+/* ── Gradient Mesh Backgrounds ── */
+.mesh-bg {
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(43, 188, 168, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(245, 158, 11, 0.1) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(43, 188, 168, 0.05) 0%, transparent 70%),
+    linear-gradient(135deg, #E8EDF2 0%, #F0F4F8 100%);
+}
+
+.mesh-bg-dark {
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(43, 188, 168, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 10%, rgba(245, 158, 11, 0.05) 0%, transparent 50%),
+    linear-gradient(135deg, #030712 0%, #0f172a 100%);
+}
+
+/* ── Floating Orbs for Hero Sections ── */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+.orb-teal {
+  background: radial-gradient(circle, rgba(43, 188, 168, 0.3), transparent 70%);
+}
+
+.orb-amber {
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.25), transparent 70%);
+}
+
+.orb-purple {
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.2), transparent 70%);
+}
+
+/* ── Premium Glass Cards ── */
+.glass-premium {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 4px 24px -4px rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.glass-dark-premium {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 4px 24px -4px rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* ── Gradient Border Effect ── */
+.gradient-border {
+  position: relative;
+  background: white;
+  border-radius: 1rem;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -1.5px;
+  border-radius: calc(1rem + 1.5px);
+  background: linear-gradient(135deg, #2BBCA8, #F59E0B, #2BBCA8);
+  z-index: -1;
+  opacity: 0.3;
+  transition: opacity 0.3s ease;
+}
+
+.gradient-border:hover::before {
+  opacity: 0.6;
+}
+
+/* ── Premium Shadow System ── */
+.shadow-premium {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.02),
+    0 8px 16px rgba(0, 0, 0, 0.04),
+    0 16px 32px rgba(0, 0, 0, 0.06);
+}
+
+.shadow-premium-lg {
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.03),
+    0 12px 24px rgba(0, 0, 0, 0.05),
+    0 24px 48px rgba(0, 0, 0, 0.08);
+}
+
+.shadow-glow-teal {
+  box-shadow: 0 0 30px rgba(43, 188, 168, 0.15), 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.shadow-glow-amber {
+  box-shadow: 0 0 30px rgba(245, 158, 11, 0.15), 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* ── Gradient Accent Text ── */
+.gradient-text-brand {
+  background: linear-gradient(135deg, #2BBCA8 0%, #F59E0B 50%, #2BBCA8 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradientTextShift 4s ease infinite;
+}
+
+@keyframes gradientTextShift {
+  0%, 100% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+}
+
+/* ── Premium Card with top gradient line ── */
+.card-premium {
+  background: white;
+  border-radius: 1rem;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-premium::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #2BBCA8, #F59E0B, #2BBCA8);
+  background-size: 200% auto;
+  animation: gradientTextShift 3s ease infinite;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.card-premium:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.12);
+}
+
+.card-premium:hover::before {
+  opacity: 1;
+}
+
+/* ── Icon Circle Gradients ── */
+.icon-circle-teal {
+  background: linear-gradient(135deg, #2BBCA8, #1E9B8A);
+  box-shadow: 0 4px 12px -2px rgba(43, 188, 168, 0.3);
+}
+
+.icon-circle-amber {
+  background: linear-gradient(135deg, #F59E0B, #D97706);
+  box-shadow: 0 4px 12px -2px rgba(245, 158, 11, 0.3);
+}
+
+.icon-circle-purple {
+  background: linear-gradient(135deg, #8B5CF6, #7C3AED);
+  box-shadow: 0 4px 12px -2px rgba(139, 92, 246, 0.3);
+}
+
+.icon-circle-rose {
+  background: linear-gradient(135deg, #F43F5E, #E11D48);
+  box-shadow: 0 4px 12px -2px rgba(244, 63, 94, 0.3);
+}
+
+/* ── Animated gradient border glow ── */
+@keyframes borderGlow {
+  0%, 100% { border-color: rgba(43, 188, 168, 0.3); }
+  50% { border-color: rgba(43, 188, 168, 0.6); }
+}
+
+.border-glow-teal {
+  animation: borderGlow 2s ease-in-out infinite;
+}
+
+/* ── Stat Card with gradient number ── */
+.stat-number {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  background: linear-gradient(135deg, #2BBCA8, #1E9B8A);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.stat-number-amber {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  background: linear-gradient(135deg, #F59E0B, #D97706);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Progress bar with gradient ── */
+.progress-gradient {
+  background: linear-gradient(90deg, #2BBCA8, #34D399);
+  box-shadow: 0 0 10px rgba(43, 188, 168, 0.3);
+}
+
+/* ── Hero section with gradient overlay ── */
+.hero-gradient {
+  background: linear-gradient(135deg, #E8EDF2 0%, #D4E5E0 30%, #E2E8F0 60%, #F0EDE5 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-gradient::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 600px 400px at 10% 20%, rgba(43, 188, 168, 0.12), transparent),
+    radial-gradient(ellipse 500px 300px at 90% 80%, rgba(245, 158, 11, 0.08), transparent);
+  pointer-events: none;
+}
+
+/* ── Subtle dot pattern ── */
+.dot-pattern {
+  background-image: radial-gradient(rgba(43, 188, 168, 0.15) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ── Staggered animation delays ── */
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+.stagger-5 { animation-delay: 0.5s; }
+
+/* ── Live pulse indicator ── */
+.live-pulse {
+  position: relative;
+}
+
+.live-pulse::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  opacity: 0;
+  animation: livePing 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes livePing {
+  75%, 100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* ── Section divider with gradient ── */
+.divider-gradient {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(43, 188, 168, 0.3), rgba(245, 158, 11, 0.2), transparent);
+}
+
+/* ── Badge shimmer effect ── */
+.badge-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.badge-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%, 100% { left: -100%; }
+  50% { left: 100%; }
+}
+
+/* ── Hover scale with shadow transition ── */
+.hover-lift {
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.15);
+}
+
+/* ── Button with gradient border ── */
+.btn-gradient-border {
+  position: relative;
+  background: white;
+  border-radius: 0.75rem;
+  z-index: 1;
+}
+
+.btn-gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: calc(0.75rem + 2px);
+  background: linear-gradient(135deg, #2BBCA8, #F59E0B);
+  z-index: -1;
+  transition: opacity 0.3s ease;
+}
+
+/* ── Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
