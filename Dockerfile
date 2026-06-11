@@ -2,14 +2,17 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files first (for caching)
 COPY package.json package-lock.json* ./
-RUN npm ci --only=production
 
-# Copy built files
-COPY dist/boot.js ./dist/boot.js
-COPY dist/public ./dist/public
-COPY .env ./.env
+# Install ALL dependencies (including dev deps needed for build)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build the project (creates dist/boot.js and dist/public)
+RUN npm run build
 
 EXPOSE 3000
 
