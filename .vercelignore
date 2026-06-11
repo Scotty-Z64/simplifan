@@ -1,0 +1,7 @@
+api/
+api
+node_modules/
+.env
+.env.*
+db/
+.git
