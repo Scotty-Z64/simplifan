@@ -1,0 +1,29 @@
+services:
+  # Static site (frontend) - always free, never sleeps
+  - type: static
+    name: simplifan-frontend
+    buildCommand: npm install && npm run build:frontend
+    publishDir: dist/public
+    envVars:
+      - key: VITE_API_URL
+        value: https://simplifan-backend.onrender.com/api/trpc
+
+  # Web service (backend API) - free tier, spins down after 15 min idle
+  - type: web
+    name: simplifan-backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/trpc/ping
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_ID
+        sync: false
+      - key: APP_SECRET
+        sync: false
+      - key: KIMI_AUTH_URL
+        value: https://auth.kimi.com
+      - key: KIMI_OPEN_URL
+        value: https://open.kimi.com
+      - key: OWNER_UNION_ID
+        sync: false
