@@ -1,98 +1,142 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { VendorLayout } from '@/components/VendorLayout';
+import { useUnified } from '@/context/UnifiedContext';
+import { trpc } from '@/providers/trpc';
 import {
-  Send, CalendarCheck
+  Send, ArrowLeft, Loader2, MessageCircle
 } from 'lucide-react';
 
 export function VendorChat() {
-  const [activeChat, setActiveChat] = useState(0);
-  const [message, setMessage] = useState('');
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const { vendorUser } = useUnified();
+  const vendorId = vendorUser ? parseInt(vendorUser.id) : 0;
 
-  const demoChats = [
-    { clientName: 'Thabo Mokoena', event: 'Wedding', date: '2026-09-15', messages: [
-      { from: 'client', text: 'Hi, I saw your quote for my wedding. Can you do the decor in teal and gold?', time: '14:30' },
-      { from: 'vendor', text: 'Absolutely! Teal and gold is a beautiful combination. I have photos from a similar wedding I did in Sandton last month. Would you like to see them?', time: '14:35' },
-      { from: 'client', text: 'Yes please! Also, can you include draping for the ceiling?', time: '14:40' },
-    ]},
-    { clientName: 'Lerato Khumalo', event: 'Funeral', date: '2026-06-20', messages: [
-      { from: 'client', text: 'Thank you for the quote. Can you do the setup on Friday evening instead of Saturday morning?', time: '10:15' },
-      { from: 'vendor', text: 'Yes, Friday evening works perfectly. I will bring my team at 6pm. No extra charge for the evening setup.', time: '10:22' },
-    ]},
-    { clientName: 'Sipho Ndlovu', event: '21st Birthday', date: '2026-07-10', messages: [
-      { from: 'client', text: 'Hi, is the R7,200 quote still valid? I am ready to book.', time: 'Yesterday' },
-    ]},
-  ];
+  // ─── API Data ───
+  const { data: conversations, isLoading } = trpc.conversation.list.useQuery(
+    { vendorId },
+    { enabled: vendorId > 0, refetchInterval: 5000 }
+  );
+  const sendMessage = trpc.conversation.sendMessage.useMutation();
+  const utils = trpc.useUtils();
 
-  const chat = demoChats[activeChat];
+  const [selectedConv, setSelectedConv] = useState<number | null>(null);
+  const [reply, setReply] = useState('');
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [activeChat]);
+  // Fetch full conversation with messages when one is selected
+  const { data: activeConvFull } = trpc.conversation.byId.useQuery(
+    { id: selectedConv ?? 0 },
+    { enabled: selectedConv !== null && selectedConv > 0, refetchInterval: 3000 }
+  );
+
+  const activeConv = conversations?.find(c => c.id === selectedConv);
+  const messages = activeConvFull?.messages ?? [];
+
+  const handleSend = () => {
+    if (!reply.trim() || !selectedConv) return;
+    sendMessage.mutate(
+      { conversationId: selectedConv, senderType: 'vendor', content: reply.trim() },
+      {
+        onSuccess: () => {
+          utils.conversation.byId.invalidate({ id: selectedConv });
+          utils.conversation.list.invalidate({ vendorId });
+        }
+      }
+    );
+    setReply('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  };
 
   return (
     <VendorLayout title="Messages">
-      <div className="max-w-4xl mx-auto" style={{ height: 'calc(100vh - 140px)' }}>
-        <div className="flex gap-4 h-full">
-          {/* Chat List */}
-          <div className="w-72 flex-shrink-0 rounded-2xl overflow-hidden" style={{ background: 'white', boxShadow: '0 2px 12px -4px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.04)' }}>
-            <div className="p-4 border-b" style={{ borderColor: 'rgba(0,0,0,0.04)' }}>
-              <h3 className="text-sm font-bold" style={{ color: '#1a1a2e' }}>Conversations</h3>
+      <div className="flex-1 flex h-[calc(100vh-80px)]">
+        {/* Conversation List */}
+        <div className={`w-full sm:w-80 flex-shrink-0 border-r overflow-y-auto ${selectedConv ? 'hidden sm:block' : ''}`} style={{ borderColor: '#E2E8F0' }}>
+          {isLoading && <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#2BBCA8' }} /></div>}
+          {!isLoading && (!conversations || conversations.length === 0) && (
+            <div className="p-8 text-center">
+              <MessageCircle className="w-10 h-10 mx-auto mb-3" style={{ color: '#CBD5E1' }} />
+              <p className="text-sm" style={{ color: '#94A3B8' }}>No conversations yet</p>
             </div>
-            <div className="divide-y" style={{ borderColor: 'rgba(0,0,0,0.04)' }}>
-              {demoChats.map((c, i) => (
-                <button key={i} onClick={() => setActiveChat(i)}
-                  className={`w-full p-4 text-left transition-colors ${activeChat === i ? 'bg-amber-50' : 'hover:bg-gray-50'}`}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white flex-shrink-0" style={{ background: 'linear-gradient(135deg, #F59E0B, #D97706)' }}>
-                      {c.clientName[0]}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-semibold truncate ${activeChat === i ? 'text-amber-700' : 'text-gray-900'}`}>{c.clientName}</p>
-                      <p className="text-[11px] truncate" style={{ color: '#94A3B8' }}>{c.messages[c.messages.length - 1].text}</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Chat Area */}
-          <div className="flex-1 rounded-2xl overflow-hidden flex flex-col" style={{ background: 'white', boxShadow: '0 2px 12px -4px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.04)' }}>
-            {/* Header */}
-            <div className="p-4 border-b flex items-center gap-3" style={{ borderColor: 'rgba(0,0,0,0.04)' }}>
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg, #F59E0B, #D97706)' }}>
-                {chat.clientName[0]}
+          )}
+          {conversations?.map(conv => (
+            <button key={conv.id} onClick={() => setSelectedConv(conv.id)}
+              className="w-full p-4 flex items-center gap-3 text-left transition-colors hover:bg-gray-50 border-b"
+              style={{ borderColor: '#F1F5F9', background: selectedConv === conv.id ? '#F0FDFA' : 'white' }}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold text-white"
+                style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)' }}>
+                {conv.client?.name?.charAt(0) ?? 'C'}
               </div>
-              <div>
-                <p className="text-sm font-bold" style={{ color: '#1a1a2e' }}>{chat.clientName}</p>
-                <p className="text-[10px] flex items-center gap-1" style={{ color: '#94A3B8' }}><CalendarCheck className="w-3 h-3" />{chat.event} on {chat.date}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate" style={{ color: '#1a1a2e' }}>{conv.client?.name ?? 'Client'}</p>
+                <p className="text-xs truncate" style={{ color: '#94A3B8' }}>{conv.lastMessage ?? 'No messages yet'}</p>
+              </div>
+              {conv.vendorUnread > 0 && (
+                <span className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: '#EF4444' }}>{conv.vendorUnread}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Chat Area */}
+        <div className={`flex-1 flex flex-col ${!selectedConv ? 'hidden sm:flex' : ''}`}>
+          {!activeConv ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <MessageCircle className="w-12 h-12 mx-auto mb-3" style={{ color: '#CBD5E1' }} />
+                <p className="text-sm" style={{ color: '#94A3B8' }}>Select a conversation to start chatting</p>
               </div>
             </div>
-
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {chat.messages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.from === 'vendor' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-xs px-4 py-2.5 rounded-2xl text-sm ${msg.from === 'vendor' ? 'rounded-br-md text-white' : 'rounded-bl-md'}`}
-                    style={{ background: msg.from === 'vendor' ? 'linear-gradient(135deg, #F59E0B, #D97706)' : '#F1F5F9', color: msg.from === 'vendor' ? 'white' : '#475569' }}>
-                    <p>{msg.text}</p>
-                    <p className={`text-[10px] mt-1 ${msg.from === 'vendor' ? 'text-amber-100' : 'text-gray-400'}`}>{msg.time}</p>
-                  </div>
+          ) : (
+            <>
+              {/* Header */}
+              <div className="px-4 py-3 flex items-center gap-3 border-b" style={{ borderColor: '#E2E8F0', background: 'white' }}>
+                <button onClick={() => setSelectedConv(null)} className="sm:hidden p-1"><ArrowLeft className="w-5 h-5" style={{ color: '#64748B' }} /></button>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)' }}>
+                  {activeConv.client?.name?.charAt(0) ?? 'C'}
                 </div>
-              ))}
-              <div ref={bottomRef} />
-            </div>
-
-            {/* Input */}
-            <div className="p-4 border-t" style={{ borderColor: 'rgba(0,0,0,0.04)' }}>
-              <div className="flex items-center gap-2">
-                <input value={message} onChange={e => setMessage(e.target.value)} placeholder="Type a message..."
-                  className="flex-1 px-4 py-3 rounded-xl text-sm border outline-none focus:ring-2 focus:ring-amber-400/30" style={{ background: '#F8FAFC', borderColor: '#E2E8F0', color: '#1a1a2e' }} />
-                <button className="p-3 rounded-xl text-white transition-all hover:-translate-y-0.5" style={{ background: 'linear-gradient(135deg, #F59E0B, #D97706)' }}>
-                  <Send className="w-5 h-5" />
-                </button>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: '#1a1a2e' }}>{activeConv.client?.name ?? 'Client'}</p>
+                  <p className="text-[10px]" style={{ color: '#10B981' }}>Online</p>
+                </div>
               </div>
-            </div>
-          </div>
+
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ background: '#F8FAFC' }}>
+                {messages.length === 0 && (
+                  <p className="text-xs text-center py-8" style={{ color: '#CBD5E1' }}>No messages yet. Say hello!</p>
+                )}
+                {messages.map((msg: any) => (
+                  <div key={msg.id} className={`flex ${msg.senderType === 'vendor' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ${
+                      msg.senderType === 'vendor'
+                        ? 'rounded-br-md text-white'
+                        : 'rounded-bl-md'
+                    }`} style={msg.senderType === 'vendor'
+                      ? { background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)' }
+                      : { background: 'white', color: '#1a1a2e', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Input */}
+              <div className="p-3 border-t" style={{ borderColor: '#E2E8F0', background: 'white' }}>
+                <div className="flex items-center gap-2">
+                  <input value={reply} onChange={e => setReply(e.target.value)} onKeyDown={handleKeyDown}
+                    placeholder="Type a message..."
+                    className="flex-1 px-4 py-3 rounded-xl text-sm outline-none" style={{ background: '#F1F5F9', color: '#1a1a2e' }} />
+                  <button onClick={handleSend} disabled={!reply.trim()}
+                    className="p-3 rounded-xl transition-all disabled:opacity-50"
+                    style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)' }}>
+                    <Send className="w-4 h-4 text-white" />
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </VendorLayout>

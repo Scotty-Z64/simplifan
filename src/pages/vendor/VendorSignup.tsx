@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { trpc } from '@/providers/trpc';
 import {
   Store, ArrowRight, CheckCircle, User, Mail, Phone, MapPin,
   Briefcase, Star, ChevronRight, BadgeCheck, Sparkles
@@ -19,6 +20,8 @@ export function VendorSignup() {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>('account');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Form state
   const [ownerName, setOwnerName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -27,9 +30,15 @@ export function VendorSignup() {
   const [bio, setBio] = useState('');
   const [address, setAddress] = useState('');
   const [province, setProvince] = useState('Gauteng');
+  const [city, setCity] = useState('');
   const [priceRange, setPriceRange] = useState('');
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [years, setYears] = useState('');
+
+  // API
+  const createVendor = trpc.vendor.create.useMutation({
+    onSuccess: () => setStep('done'),
+  });
 
   const toggleService = (s: string) => {
     setSelectedServices(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
@@ -42,9 +51,28 @@ export function VendorSignup() {
     return true;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
     setIsSubmitting(true);
-    setTimeout(() => { setIsSubmitting(false); setStep('done'); }, 1500);
+    try {
+      await createVendor.mutateAsync({
+        businessName,
+        ownerName,
+        email,
+        phone,
+        category,
+        bio,
+        province,
+        city: city || undefined,
+        address,
+        priceRange: priceRange || undefined,
+        yearsInBusiness: years ? parseInt(years) : undefined,
+        services: selectedServices.map(s => ({ name: s })),
+      });
+    } catch (err) {
+      console.error('Vendor creation failed:', err);
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -111,13 +139,10 @@ export function VendorSignup() {
               </div>
             </div>
             <button onClick={() => setStep('business')} disabled={!canProceed()}
-              className="w-full py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 disabled:opacity-50"
+              className="w-full py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
               style={{ background: 'linear-gradient(135deg, #F59E0B, #D97706)', boxShadow: '0 4px 12px -3px rgba(245,158,11,0.3)' }}>
               Next: Business Info <ArrowRight className="w-4 h-4" />
             </button>
-            <p className="text-center text-xs" style={{ color: '#94A3B8' }}>
-              Already have an account? <button onClick={() => navigate('/vendor-login')} className="font-bold" style={{ color: '#F59E0B' }}>Sign in</button>
-            </p>
           </div>
         )}
 
@@ -159,8 +184,8 @@ export function VendorSignup() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#475569' }}>Years in Business</label>
-                <input value={years} onChange={e => setYears(e.target.value)} placeholder="e.g. 5"
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#475569' }}>City</label>
+                <input value={city} onChange={e => setCity(e.target.value)} placeholder="e.g. Sandton"
                   className="w-full px-4 py-3 rounded-xl text-sm outline-none" style={{ background: 'white', border: '1px solid #E2E8F0', color: '#1a1a2e' }} />
               </div>
             </div>
@@ -172,19 +197,26 @@ export function VendorSignup() {
                   className="flex-1 bg-transparent text-sm outline-none" style={{ color: '#1a1a2e' }} />
               </div>
             </div>
-            <div>
-              <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#475569' }}>Price Range</label>
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: 'white', border: '1px solid #E2E8F0' }}>
-                <Briefcase className="w-4 h-4" style={{ color: '#CBD5E1' }} />
-                <input value={priceRange} onChange={e => setPriceRange(e.target.value)} placeholder="e.g. R5k - R20k"
-                  className="flex-1 bg-transparent text-sm outline-none" style={{ color: '#1a1a2e' }} />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#475569' }}>Price Range</label>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: 'white', border: '1px solid #E2E8F0' }}>
+                  <Briefcase className="w-4 h-4" style={{ color: '#CBD5E1' }} />
+                  <input value={priceRange} onChange={e => setPriceRange(e.target.value)} placeholder="e.g. R5k - R20k"
+                    className="flex-1 bg-transparent text-sm outline-none" style={{ color: '#1a1a2e' }} />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#475569' }}>Years in Business</label>
+                <input value={years} onChange={e => setYears(e.target.value)} placeholder="e.g. 5"
+                  className="w-full px-4 py-3 rounded-xl text-sm outline-none" style={{ background: 'white', border: '1px solid #E2E8F0', color: '#1a1a2e' }} />
               </div>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setStep('account')}
                 className="flex-1 py-3.5 rounded-xl text-sm font-bold" style={{ background: '#F1F5F9', color: '#64748B', border: '1px solid #E2E8F0' }}>Back</button>
               <button onClick={() => setStep('services')} disabled={!canProceed()}
-                className="flex-[2] py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 disabled:opacity-50"
+                className="flex-[2] py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg, #F59E0B, #D97706)', boxShadow: '0 4px 12px -3px rgba(245,158,11,0.3)' }}>
                 Next: Services <ArrowRight className="w-4 h-4" />
               </button>
@@ -221,7 +253,7 @@ export function VendorSignup() {
               <button onClick={() => setStep('business')}
                 className="flex-1 py-3.5 rounded-xl text-sm font-bold" style={{ background: '#F1F5F9', color: '#64748B', border: '1px solid #E2E8F0' }}>Back</button>
               <button onClick={handleSubmit} disabled={!canProceed() || isSubmitting}
-                className="flex-[2] py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 disabled:opacity-50"
+                className="flex-[2] py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg, #F59E0B, #D97706)', boxShadow: '0 4px 12px -3px rgba(245,158,11,0.3)' }}>
                 {isSubmitting ? <><Sparkles className="w-4 h-4 animate-spin" />Creating...</> : <><BadgeCheck className="w-4 h-4" />Complete Signup</>}
               </button>
@@ -238,12 +270,12 @@ export function VendorSignup() {
             </div>
             <div>
               <h2 className="text-2xl font-bold mb-2" style={{ color: '#1a1a2e' }}>Welcome to SimpliPlan!</h2>
-              <p className="text-sm" style={{ color: '#64748B' }}>Your vendor profile is being reviewed. You will be verified within 24 hours.</p>
+              <p className="text-sm" style={{ color: '#64748B' }}>Your vendor profile has been created. You can start receiving quote requests immediately.</p>
             </div>
             <div className="rounded-2xl p-5 text-left space-y-3" style={{ background: 'white', boxShadow: '0 2px 12px -4px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.04)' }}>
               <h3 className="text-sm font-bold" style={{ color: '#1a1a2e' }}>What happens next?</h3>
               {[
-                { icon: CheckCircle, text: 'Profile reviewed by our team', color: '#10B981' },
+                { icon: CheckCircle, text: 'Profile is live and searchable', color: '#10B981' },
                 { icon: Sparkles, text: 'Add your products & services', color: '#F59E0B' },
                 { icon: Star, text: 'Start receiving quote requests', color: '#2BBCA8' },
               ].map((item, i) => (
@@ -254,7 +286,7 @@ export function VendorSignup() {
               ))}
             </div>
             <button onClick={() => navigate('/vendor-login')}
-              className="w-full py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"
+              className="w-full py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all"
               style={{ background: 'linear-gradient(135deg, #F59E0B, #D97706)', boxShadow: '0 4px 12px -3px rgba(245,158,11,0.3)' }}>
               <ChevronRight className="w-5 h-5" /> Go to Vendor Login
             </button>

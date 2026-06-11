@@ -1,47 +1,109 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useUnified } from '@/context/UnifiedContext';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { trpc } from '@/providers/trpc';
 import {
-  ArrowRight, Eye, EyeOff, Mail, Lock, Sparkles, User, ChevronLeft
+  LogIn, ArrowRight, Sparkles, User, Lock,
+  Phone, Loader2, Store
 } from 'lucide-react';
+
+/**
+ * SimpliPlan Login — Phone-based OTP Authentication
+ * 
+ * Flow:
+ * 1. User enters phone number
+ * 2. OTP is "sent" (demo: OTP is always "123456")
+ * 3. User enters OTP
+ * 4. Client profile created/fetched from DB
+ * 5. User is logged in
+ * 
+ * For production, integrate Twilio/Africa's Talking for real SMS.
+ */
 
 export function Login() {
   const navigate = useNavigate();
-  const { loginClient } = useUnified();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  const [step, setStep] = useState<'phone' | 'otp'>('phone');
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [error, setError] = useState('');
+
+  // API
+  const createClient = trpc.spClient.create.useMutation();
+
+  // If already logged in via OAuth, redirect
+  if (user) {
+    navigate('/client');
+    return null;
+  }
+
+  const handleSendOtp = () => {
+    setError('');
+    if (!phone || phone.length < 10) {
+      setError('Please enter a valid phone number');
+      return;
+    }
+    setSending(true);
+    // Simulate OTP sending delay
     setTimeout(() => {
-      loginClient('0712345678');
-      setIsLoading(false);
-      navigate('/client');
-    }, 800);
+      setSending(false);
+      setStep('otp');
+    }, 1000);
   };
 
-  const handleDemoLogin = () => {
-    loginClient('0712345678');
-    navigate('/client');
+  const handleVerifyOtp = async () => {
+    setError('');
+    if (otp !== '123456') {
+      setError('Invalid OTP. For demo, use: 123456');
+      return;
+    }
+    setVerifying(true);
+    try {
+      // Create or get client
+      const client = await createClient.mutateAsync({
+        name: 'Client ' + phone.slice(-4),
+        phone: phone.replace(/\s/g, ''),
+      });
+
+      // Store client user in localStorage for the context
+      const clientUser = {
+        id: String(client.id),
+        name: client.name,
+        phone: client.phone,
+        location: client.location || '',
+        avatar: client.name.charAt(0).toUpperCase(),
+      };
+      localStorage.setItem('sp_client_user', JSON.stringify(clientUser));
+
+      // Also store auth flag
+      localStorage.setItem('sp_auth_type', 'client');
+
+      setVerifying(false);
+      window.location.href = '/#/client';
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Something went wrong. Please try again.');
+      setVerifying(false);
+    }
   };
 
   return (
     <div className="min-h-screen flex" style={{ background: '#F1F5F9' }}>
-      {/* Left Panel - Branding */}
+      {/* Left Panel */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
         <div className="absolute top-0 right-0 w-80 h-80 rounded-full" style={{ background: 'radial-gradient(circle, rgba(43,188,168,0.08) 0%, transparent 70%)' }} />
         <div className="absolute bottom-0 left-0 w-60 h-60 rounded-full" style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.06) 0%, transparent 70%)' }} />
         <div className="relative z-10 flex flex-col justify-center p-12">
           <h2 className="text-3xl font-bold text-white mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Welcome Back</h2>
-          <p className="text-base mb-8 leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>Access your event dashboard, track your vendors, and manage your bookings all in one place.</p>
+          <p className="text-base mb-8 leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>Sign in to manage your events, chat with vendors, and track your bookings.</p>
           <div className="space-y-4">
             {[
-              { icon: Sparkles, text: 'Track your event progress in real-time' },
-              { icon: User, text: 'Chat with vendors directly' },
-              { icon: Lock, text: 'Secure PayFast payments' },
+              { icon: Sparkles, text: 'Track all your events in one place' },
+              { icon: User, text: 'Chat directly with verified vendors' },
+              { icon: Lock, text: 'Secure OTP authentication' },
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(43,188,168,0.15)' }}>
@@ -54,60 +116,80 @@ export function Login() {
         </div>
       </div>
 
-      {/* Right Panel - Form */}
+      {/* Right Panel */}
       <div className="flex-1 flex flex-col justify-center p-6 sm:p-12">
         <div className="max-w-sm mx-auto w-full">
-          <button onClick={() => navigate('/')} className="flex items-center gap-1 text-xs font-medium mb-8 transition-colors hover:text-teal-600" style={{ color: '#94A3B8' }}>
-            <ChevronLeft className="w-4 h-4" /> Back to home
-          </button>
-
-          <h1 className="text-2xl font-bold mb-2" style={{ color: '#1a1a2e', fontFamily: "'Space Grotesk', sans-serif" }}>Sign In</h1>
-          <p className="text-sm mb-8" style={{ color: '#64748B' }}>Enter your details to access your account.</p>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#475569' }}>Email</label>
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: 'white', border: '1px solid #E2E8F0' }}>
-                <Mail className="w-4 h-4 flex-shrink-0" style={{ color: '#94A3B8' }} />
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com"
-                  className="flex-1 bg-transparent text-sm outline-none" style={{ color: '#1a1a2e' }} />
-              </div>
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)', boxShadow: '0 8px 20px -4px rgba(43,188,168,0.3)' }}>
+              <LogIn className="w-8 h-8 text-white" />
             </div>
-
-            <div>
-              <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#475569' }}>Password</label>
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: 'white', border: '1px solid #E2E8F0' }}>
-                <Lock className="w-4 h-4 flex-shrink-0" style={{ color: '#94A3B8' }} />
-                <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter password"
-                  className="flex-1 bg-transparent text-sm outline-none" style={{ color: '#1a1a2e' }} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)}>
-                  {showPassword ? <EyeOff className="w-4 h-4" style={{ color: '#94A3B8' }} /> : <Eye className="w-4 h-4" style={{ color: '#94A3B8' }} />}
-                </button>
-              </div>
-            </div>
-
-            <button type="submit" disabled={isLoading}
-              className="w-full py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 disabled:opacity-60"
-              style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)', boxShadow: '0 4px 12px -3px rgba(43,188,168,0.3)' }}>
-              {isLoading ? 'Signing in...' : <><span>Sign In</span><ArrowRight className="w-4 h-4" /></>}
-            </button>
-          </form>
-
-          <div className="my-6 flex items-center gap-3">
-            <div className="flex-1 h-px" style={{ background: '#E2E8F0' }} />
-            <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: '#94A3B8' }}>or</span>
-            <div className="flex-1 h-px" style={{ background: '#E2E8F0' }} />
+            <h1 className="text-2xl font-bold mb-1" style={{ color: '#1a1a2e', fontFamily: "'Space Grotesk', sans-serif" }}>Sign In</h1>
+            <p className="text-sm" style={{ color: '#64748B' }}>{step === 'phone' ? 'Enter your phone number' : 'Enter the OTP sent to your phone'}</p>
           </div>
 
-          <button onClick={handleDemoLogin}
-            className="w-full py-3 rounded-xl text-sm font-bold transition-all hover:-translate-y-0.5"
-            style={{ background: '#F1F5F9', color: '#2BBCA8', border: '1.5px dashed #2BBCA8' }}>
-            Try Demo (No Login)
-          </button>
+          {error && (
+            <div className="mb-4 p-3 rounded-xl text-sm" style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+              {error}
+            </div>
+          )}
+
+          {/* Step 1: Phone Number */}
+          {step === 'phone' && (
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#475569' }}>Phone Number</label>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: 'white', border: '1px solid #E2E8F0' }}>
+                  <Phone className="w-4 h-4" style={{ color: '#CBD5E1' }} />
+                  <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="082 345 6789"
+                    className="flex-1 bg-transparent text-sm outline-none" style={{ color: '#1a1a2e' }} />
+                </div>
+                <p className="text-[10px] mt-1" style={{ color: '#94A3B8' }}>Demo: any number works. OTP will be 123456.</p>
+              </div>
+              <button onClick={handleSendOtp} disabled={sending}
+                className="w-full py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)', boxShadow: '0 4px 12px -3px rgba(43,188,168,0.3)' }}>
+                {sending ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</> : <><span>Send OTP</span><ArrowRight className="w-4 h-4" /></>}
+              </button>
+            </div>
+          )}
+
+          {/* Step 2: OTP */}
+          {step === 'otp' && (
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#475569' }}>Enter OTP</label>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: 'white', border: '1px solid #E2E8F0' }}>
+                  <Lock className="w-4 h-4" style={{ color: '#CBD5E1' }} />
+                  <input type="text" value={otp} onChange={e => setOtp(e.target.value)} placeholder="123456" maxLength={6}
+                    className="flex-1 bg-transparent text-sm outline-none" style={{ color: '#1a1a2e', letterSpacing: '0.2em' }} />
+                </div>
+                <p className="text-[10px] mt-1" style={{ color: '#94A3B8' }}>Code sent to {phone}. Demo code: 123456</p>
+              </div>
+              <button onClick={handleVerifyOtp} disabled={verifying || otp.length < 6}
+                className="w-full py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)', boxShadow: '0 4px 12px -3px rgba(43,188,168,0.3)' }}>
+                {verifying ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying...</> : <><span>Verify & Sign In</span><ArrowRight className="w-4 h-4" /></>}
+              </button>
+              <button onClick={() => setStep('phone')}
+                className="w-full py-2.5 rounded-xl text-xs font-semibold"
+                style={{ color: '#64748B' }}>
+                Change phone number
+              </button>
+            </div>
+          )}
 
           <p className="text-xs text-center mt-6" style={{ color: '#94A3B8' }}>
-            Do not have an account? <button onClick={() => navigate('/register')} className="font-semibold" style={{ color: '#2BBCA8' }}>Register</button>
+            New to SimpliPlan? <Link to="/register" className="font-semibold" style={{ color: '#2BBCA8' }}>Create account</Link>
           </p>
+
+          {/* Vendor Login */}
+          <div className="mt-6 pt-6" style={{ borderTop: '1px solid #E2E8F0' }}>
+            <Link to="/vendor-login" className="flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all"
+              style={{ background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A' }}>
+              <Store className="w-4 h-4" /> Login as Vendor
+            </Link>
+          </div>
         </div>
       </div>
     </div>

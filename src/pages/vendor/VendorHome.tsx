@@ -1,10 +1,11 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useUnified } from '@/context/UnifiedContext';
+import { trpc } from '@/providers/trpc';
 import {
   LayoutDashboard, Inbox, MessageCircle, DollarSign, BarChart3,
   Grid3X3, Store, Bell, LogOut, Star, TrendingUp,
   TrendingDown, Package, ChevronRight,
-  Zap, ArrowUpRight, Calendar, Phone, MapPin
+  Zap, ArrowUpRight, Calendar, Phone, MapPin,
 } from 'lucide-react';
 
 /* ─── SimpliPlan Logo ─── */
@@ -35,32 +36,63 @@ const sidebarNav = [
 export function VendorHome() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { vendorUser, events, getUnreadCount, getVendorTransactions } = useUnified();
-  const unread = vendorUser ? getUnreadCount(vendorUser.id) : 0;
-  const myTx = vendorUser ? getVendorTransactions(vendorUser.id) : [];
+  const { vendorUser } = useUnified();
+  const vendorId = vendorUser ? parseInt(vendorUser.id) : 0;
 
-  const thisMonthEarnings = myTx.filter(t => t.status === 'paid' && t.date.startsWith('2026-06')).reduce((s, t) => s + t.amount, 0);
-  const lastMonthEarnings = myTx.filter(t => t.status === 'paid' && t.date.startsWith('2026-05')).reduce((s, t) => s + t.amount, 0);
-  const earningsGrowth = lastMonthEarnings > 0 ? Math.round(((thisMonthEarnings - lastMonthEarnings) / lastMonthEarnings) * 100) : 12;
-
-  const newQuoteRequests = events.filter(e =>
-    e.status === 'quoted' && !e.vendorResponses.some(vr => vendorUser && vr.vendorId === vendorUser.id)
+  // ─── API Data ───
+  const { data: quotes } = trpc.quote.list.useQuery(
+    vendorId > 0 ? { vendorId, limit: 50 } : undefined,
+    { enabled: vendorId > 0 }
+  );
+  const { data: earnings } = trpc.payment.vendorEarnings.useQuery(
+    { vendorId },
+    { enabled: vendorId > 0 }
+  );
+  const { data: performance } = trpc.analytics.vendorPerformance.useQuery(
+    { vendorId },
+    { enabled: vendorId > 0 }
   );
 
-  // Demo leads for the dashboard
-  const recentLeads = [
-    { name: 'Thabo Mokoena', event: 'Wedding', date: '2026-09-15', guests: 150, budget: 45000, status: 'new', time: '2h ago', location: 'Johannesburg' },
-    { name: 'Lerato Khumalo', event: 'Funeral', date: '2026-06-20', guests: 200, budget: 25000, status: 'new', time: '5h ago', location: 'Soweto' },
-    { name: 'Sipho Ndlovu', event: '21st Birthday', date: '2026-07-10', guests: 80, budget: 8000, status: 'quoted', time: '1d ago', location: 'Pretoria' },
-    { name: 'Mary van Wyk', event: 'Baby Shower', date: '2026-08-05', guests: 30, budget: 5000, status: 'accepted', time: '2d ago', location: 'Centurion' },
-  ];
+  const unread = 0; // Will be from notifications API
+
+  // Real leads from API
+  const recentLeads = (quotes ?? [])
+    .filter(q => q.status === 'submitted' || q.status === 'sent')
+    .slice(0, 5)
+    .map(q => ({
+      name: q.clientName,
+      event: q.eventType,
+      date: q.eventDate ?? 'TBD',
+      guests: q.guestCount ? parseInt(q.guestCount) : 0,
+      budget: 0,
+      status: q.status,
+      time: new Date(q.createdAt).toLocaleDateString(),
+      location: q.province ?? 'SA',
+    }));
+
+  // Earnings
+  const payments = earnings?.payments ?? [];
+  const thisMonthEarnings = payments
+    .filter((p: any) => p.status === 'completed' && new Date(p.createdAt).getMonth() === 5)
+    .reduce((s: number, p: any) => s + Number(p.amount), 0);
+  const lastMonthEarnings = payments
+    .filter((p: any) => p.status === 'completed' && new Date(p.createdAt).getMonth() === 4)
+    .reduce((s: number, p: any) => s + Number(p.amount), 0);
+  const earningsGrowth = lastMonthEarnings > 0
+    ? Math.round(((thisMonthEarnings - lastMonthEarnings) / lastMonthEarnings) * 100)
+    : 0;
+
+  const pendingPayout = payments
+    .filter((p: any) => p.status === 'pending')
+    .reduce((s: number, p: any) => s + Number(p.amount), 0);
+  const platformFees = earnings?.totalFees ?? 0;
 
   const recentActivity = [
-    { text: 'New quote request: Wedding in Sandton (R45,000)', time: '14:32', type: 'lead' },
-    { text: 'Client accepted your quote for 21st Birthday', time: '13:15', type: 'win' },
-    { text: 'Payment received: R8,500 deposit', time: '12:48', type: 'payment' },
-    { text: 'New review: 5 stars from Lerato M.', time: '11:20', type: 'review' },
-    { text: 'Message from Thabo M. about catering menu', time: '10:05', type: 'message' },
+    { text: `${performance?.bookings?.total ?? 0} total bookings`, time: 'Live', type: 'lead' },
+    { text: `R${(earnings?.totalNet ?? 0).toLocaleString()} total earnings`, time: 'Live', type: 'payment' },
+    { text: `${performance?.responseRate ?? 0}% response rate`, time: 'Live', type: 'win' },
+    { text: `${quotes?.length ?? 0} quote requests received`, time: 'Live', type: 'message' },
+    { text: `${vendorUser?.rating ?? 4.5} star rating`, time: 'Live', type: 'review' },
   ];
 
   return (
@@ -106,8 +138,8 @@ export function VendorHome() {
                 style={isActive ? { background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.15)' } : { border: '1px solid transparent' }}>
                 <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-amber-400' : ''}`} />
                 <span className="text-sm font-medium flex-1">{item.label}</span>
-                {item.badge === 'new' && newQuoteRequests.length > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: '#EF4444' }}>{newQuoteRequests.length}</span>
+                {item.badge === 'new' && recentLeads.length > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: '#EF4444' }}>{recentLeads.length}</span>
                 )}
                 {item.badge === 'msg' && unread > 0 && (
                   <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: '#EF4444' }}>{unread}</span>
@@ -139,7 +171,7 @@ export function VendorHome() {
           <div className="flex items-center gap-4">
             <button className="relative p-2.5 rounded-xl transition-colors hover:bg-gray-100" style={{ color: '#64748B' }}>
               <Bell className="w-5 h-5" />
-              {(unread > 0 || newQuoteRequests.length > 0) && <span className="absolute top-2 right-2 w-2 h-2 rounded-full" style={{ background: '#EF4444' }} />}
+              {(unread > 0 || recentLeads.length > 0) && <span className="absolute top-2 right-2 w-2 h-2 rounded-full" style={{ background: '#EF4444' }} />}
             </button>
             <button onClick={() => navigate('/vendor/profile')}
               className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg, #F59E0B, #D97706)' }}>
@@ -171,11 +203,11 @@ export function VendorHome() {
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(245,158,11,0.05))' }}>
                   <Inbox className="w-5 h-5" style={{ color: '#F59E0B' }} />
                 </div>
-                {newQuoteRequests.length > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: '#EF4444' }}>{newQuoteRequests.length} NEW</span>
+                {recentLeads.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: '#EF4444' }}>{recentLeads.length} NEW</span>
                 )}
               </div>
-              <p className="text-2xl font-bold" style={{ color: '#1a1a2e', fontFamily: "'Space Grotesk', sans-serif" }}>{newQuoteRequests.length + 2}</p>
+              <p className="text-2xl font-bold" style={{ color: '#1a1a2e', fontFamily: "'Space Grotesk', sans-serif" }}>{recentLeads.length}</p>
               <p className="text-xs mt-1" style={{ color: '#94A3B8' }}>New Leads This Week</p>
             </div>
 
@@ -257,7 +289,7 @@ export function VendorHome() {
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-semibold truncate" style={{ color: '#1a1a2e' }}>{lead.name}</p>
                           <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
-                            lead.status === 'new' ? 'bg-red-50 text-red-500' : lead.status === 'quoted' ? 'bg-amber-50 text-amber-500' : 'bg-emerald-50 text-emerald-500'
+                            lead.status === 'submitted' ? 'bg-red-50 text-red-500' : lead.status === 'quoted' ? 'bg-amber-50 text-amber-500' : 'bg-emerald-50 text-emerald-500'
                           }`}>{lead.status.toUpperCase()}</span>
                         </div>
                         <div className="flex items-center gap-3 text-[11px] mt-0.5" style={{ color: '#94A3B8' }}>
@@ -291,11 +323,11 @@ export function VendorHome() {
                   </div>
                   <div className="p-4 rounded-xl" style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.08)' }}>
                     <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#94A3B8' }}>Pending</p>
-                    <p className="text-lg font-bold mt-1" style={{ color: '#F59E0B' }}>R 12,500</p>
+                    <p className="text-lg font-bold mt-1" style={{ color: '#F59E0B' }}>R {pendingPayout.toLocaleString()}</p>
                   </div>
                   <div className="p-4 rounded-xl" style={{ background: 'rgba(139,92,246,0.05)', border: '1px solid rgba(139,92,246,0.08)' }}>
                     <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#94A3B8' }}>Platform Fees</p>
-                    <p className="text-lg font-bold mt-1" style={{ color: '#8B5CF6' }}>R 1,240</p>
+                    <p className="text-lg font-bold mt-1" style={{ color: '#8B5CF6' }}>R {platformFees.toLocaleString()}</p>
                   </div>
                 </div>
               </div>

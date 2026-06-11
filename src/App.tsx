@@ -37,6 +37,7 @@ import { VendorReviewsPage } from '@/pages/client/VendorReviewsPage';
 import { DigitalInvites } from '@/pages/client/DigitalInvites';
 import { CulturalGuide } from '@/pages/client/CulturalGuide';
 import { ConversationalPlanner } from '@/pages/client/ConversationalPlanner';
+import { ClientChat } from '@/pages/client/ClientChat';
 
 import { VendorLogin } from '@/pages/vendor/VendorLogin';
 import { VendorSignup } from '@/pages/vendor/VendorSignup';
@@ -117,6 +118,7 @@ function App() {
               <Route path="/client/invites/:eventId" element={<DigitalInvites />} />
               <Route path="/client/cultural-guide" element={<CulturalGuide />} />
               <Route path="/client/planner" element={<ConversationalPlanner />} />
+              <Route path="/client/chat" element={<ClientChat />} />
 
               {/* Vendor Portal */}
               <Route path="/vendor-login" element={<VendorLogin />} />
