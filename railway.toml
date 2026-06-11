@@ -1,8 +1,7 @@
 [build]
-builder = "nixpacks"
+builder = "dockerfile"
 
 [deploy]
-startCommand = "npm start"
+startCommand = "node dist/boot.js"
 healthcheckPath = "/api/trpc/ping"
-healthcheckTimeout = 30
 restartPolicyType = "on_failure"
