@@ -8,7 +8,7 @@ import { appRouter } from "./router";
 import { createContext } from "./context";
 
 const app = new Hono();
-const port = parseInt(process.env.PORT || "3000");
+const port = 3000;
 
 // CORS
 app.use("*", async (c, next) => {
