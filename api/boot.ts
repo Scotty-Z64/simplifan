@@ -4,6 +4,7 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import fs from "fs";
 import path from "path";
 import zlib from "zlib";
+import { registerWhatsAppWebhook } from "./whatsapp/webhook";
 
 console.log("[BOOT] Starting SimpliPlan...");
 
@@ -120,6 +121,9 @@ app.use("*", async (c, next) => {
   c.header("Content-Type", contentType);
   return c.body(content);
 });
+
+// Register WhatsApp webhook
+registerWhatsAppWebhook(app);
 
 serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, () => {
   console.log(`[BOOT] Running on port ${port}`);
