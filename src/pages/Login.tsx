@@ -4,21 +4,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { trpc } from '@/providers/trpc';
 import {
   LogIn, ArrowRight, Sparkles, User, Lock,
-  Phone, Loader2, Store
+  Phone, Loader2, Store, CheckCircle
 } from 'lucide-react';
-
-/**
- * SimpliPlan Login — Phone-based OTP Authentication
- * 
- * Flow:
- * 1. User enters phone number
- * 2. OTP is "sent" (demo: OTP is always "123456")
- * 3. User enters OTP
- * 4. Client profile created/fetched from DB
- * 5. User is logged in
- * 
- * For production, integrate Twilio/Africa's Talking for real SMS.
- */
 
 export function Login() {
   const navigate = useNavigate();
@@ -30,62 +17,80 @@ export function Login() {
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState('');
+  const [sentCode, setSentCode] = useState('');
 
   // API
+  const sendOtp = trpc.otp.send.useMutation();
+  const verifyOtp = trpc.otp.verify.useMutation();
   const createClient = trpc.spClient.create.useMutation();
 
-  // If already logged in via OAuth, redirect
   if (user) {
     navigate('/client');
     return null;
   }
 
-  const handleSendOtp = () => {
+  const handleSendOtp = async () => {
     setError('');
-    if (!phone || phone.length < 10) {
-      setError('Please enter a valid phone number');
+    const cleanPhone = phone.replace(/\s/g, '');
+    if (!cleanPhone || cleanPhone.length < 9) {
+      setError('Please enter a valid phone number (at least 9 digits)');
       return;
     }
     setSending(true);
-    // Simulate OTP sending delay
-    setTimeout(() => {
-      setSending(false);
+    try {
+      const result = await sendOtp.mutateAsync({ phone: cleanPhone });
+      if (!result.success) {
+        setError(result.error || 'Failed to send OTP');
+        setSending(false);
+        return;
+      }
       setStep('otp');
-    }, 1000);
+      // Show code in development (remove this line in production)
+      if ((result as any)._code) {
+        setSentCode((result as any)._code);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to send OTP');
+    }
+    setSending(false);
   };
 
   const handleVerifyOtp = async () => {
     setError('');
-    if (otp !== '123456') {
-      setError('Invalid OTP. For demo, use: 123456');
+    if (otp.length !== 6) {
+      setError('Please enter the 6-digit code');
       return;
     }
     setVerifying(true);
     try {
-      // Create or get client
+      const cleanPhone = phone.replace(/\s/g, '');
+      const result = await verifyOtp.mutateAsync({ phone: cleanPhone, code: otp });
+      if (!result.success) {
+        setError(result.error || 'Invalid code');
+        setVerifying(false);
+        return;
+      }
+
+      // OTP verified - create/get client profile
       const client = await createClient.mutateAsync({
-        name: 'Client ' + phone.slice(-4),
-        phone: phone.replace(/\s/g, ''),
+        name: 'Client ' + cleanPhone.slice(-4),
+        phone: cleanPhone,
       });
 
-      // Store client user in localStorage for the context
       const clientUser = {
         id: String(client.id),
         name: client.name,
         phone: client.phone,
-        location: client.location || '',
+        location: (client as any).location || '',
         avatar: client.name.charAt(0).toUpperCase(),
       };
       localStorage.setItem('sp_client_user', JSON.stringify(clientUser));
-
-      // Also store auth flag
       localStorage.setItem('sp_auth_type', 'client');
 
       setVerifying(false);
       window.location.href = '/#/client';
-    } catch (err) {
-      console.error('Login error:', err);
-      setError('Something went wrong. Please try again.');
+    } catch (err: any) {
+      setError(err.message || 'Verification failed');
       setVerifying(false);
     }
   };
@@ -144,7 +149,7 @@ export function Login() {
                   <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="082 345 6789"
                     className="flex-1 bg-transparent text-sm outline-none" style={{ color: '#1a1a2e' }} />
                 </div>
-                <p className="text-[10px] mt-1" style={{ color: '#94A3B8' }}>Demo: any number works. OTP will be 123456.</p>
+                <p className="text-[10px] mt-1" style={{ color: '#94A3B8' }}>We will send a 6-digit verification code</p>
               </div>
               <button onClick={handleSendOtp} disabled={sending}
                 className="w-full py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60"
@@ -157,23 +162,31 @@ export function Login() {
           {/* Step 2: OTP */}
           {step === 'otp' && (
             <div className="space-y-4">
+              {/* Dev mode: show the code since SMS isn't configured */}
+              {sentCode && (
+                <div className="p-4 rounded-xl text-center" style={{ background: '#F0FDFA', border: '1px solid #A7F3D0' }}>
+                  <p className="text-xs font-semibold mb-1" style={{ color: '#0F766E' }}>Your verification code</p>
+                  <p className="text-3xl font-bold tracking-[0.3em]" style={{ color: '#2BBCA8' }}>{sentCode}</p>
+                  <p className="text-[10px] mt-1" style={{ color: '#64748B' }}>This will be sent via SMS when you connect an SMS provider</p>
+                </div>
+              )}
+
               <div>
-                <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#475569' }}>Enter OTP</label>
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#475569' }}>Enter 6-Digit Code</label>
                 <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: 'white', border: '1px solid #E2E8F0' }}>
                   <Lock className="w-4 h-4" style={{ color: '#CBD5E1' }} />
-                  <input type="text" value={otp} onChange={e => setOtp(e.target.value)} placeholder="123456" maxLength={6}
-                    className="flex-1 bg-transparent text-sm outline-none" style={{ color: '#1a1a2e', letterSpacing: '0.2em' }} />
+                  <input type="text" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="------" maxLength={6}
+                    className="flex-1 bg-transparent text-sm outline-none text-center" style={{ color: '#1a1a2e', letterSpacing: '0.5em' }} />
                 </div>
-                <p className="text-[10px] mt-1" style={{ color: '#94A3B8' }}>Code sent to {phone}. Demo code: 123456</p>
+                <p className="text-[10px] mt-1" style={{ color: '#94A3B8' }}>Code sent to {phone}. Valid for 10 minutes.</p>
               </div>
               <button onClick={handleVerifyOtp} disabled={verifying || otp.length < 6}
                 className="w-full py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60"
                 style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)', boxShadow: '0 4px 12px -3px rgba(43,188,168,0.3)' }}>
-                {verifying ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying...</> : <><span>Verify & Sign In</span><ArrowRight className="w-4 h-4" /></>}
+                {verifying ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying...</> : <><CheckCircle className="w-4 h-4" /><span>Verify & Sign In</span></>}
               </button>
-              <button onClick={() => setStep('phone')}
-                className="w-full py-2.5 rounded-xl text-xs font-semibold"
-                style={{ color: '#64748B' }}>
+              <button onClick={() => { setStep('phone'); setOtp(''); setSentCode(''); setError(''); }}
+                className="w-full py-2.5 rounded-xl text-xs font-semibold" style={{ color: '#64748B' }}>
                 Change phone number
               </button>
             </div>

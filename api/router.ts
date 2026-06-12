@@ -9,6 +9,7 @@ import { eventRouter } from "./event-router";
 import { conversationRouter } from "./conversation-router";
 import { notificationRouter } from "./notification-router";
 import { analyticsRouter } from "./analytics-router";
+import { otpRouter } from "./otp-router";
 import { createRouter, publicQuery } from "./middleware";
 
 export const appRouter = createRouter({
@@ -24,6 +25,7 @@ export const appRouter = createRouter({
   conversation: conversationRouter,
   notification: notificationRouter,
   analytics: analyticsRouter,
+  otp: otpRouter,
 });
 
 export type AppRouter = typeof appRouter;

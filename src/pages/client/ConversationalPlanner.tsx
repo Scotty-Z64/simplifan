@@ -72,16 +72,33 @@ export function ConversationalPlanner() {
         { title: 'Budget', icon: DollarSign },
       ];
 
-  const stepOffset = isLoggedIn ? 0 : 1;
-
   const canNext = () => {
-    const s = step + stepOffset;
-    if (s === 0) return form.name.trim().length >= 2 && form.phone.length >= 10;
-    if (s === 1) return form.eventType;
-    if (s === 2) return form.province;
-    if (s === 3) return form.eventDate;
-    if (s === 4) return form.guestCount;
-    if (s === 5) return form.budget > 0;
+    // Check against the actual step index (0-based in allSteps array)
+    // Step 0 = Your Details (guests) or Event Type (logged-in)
+    if (step === 0) {
+      if (isLoggedIn) return !!form.eventType;
+      return form.name.trim().length >= 2 && form.phone.length >= 9;
+    }
+    if (step === 1) {
+      if (isLoggedIn) return !!form.province;
+      return !!form.eventType;
+    }
+    if (step === 2) {
+      if (isLoggedIn) return !!form.eventDate;
+      return !!form.province;
+    }
+    if (step === 3) {
+      if (isLoggedIn) return !!form.guestCount;
+      return !!form.eventDate;
+    }
+    if (step === 4) {
+      if (isLoggedIn) return form.budget > 0;
+      return !!form.guestCount;
+    }
+    if (step === 5) {
+      // Only for guests (6 steps)
+      return form.budget > 0;
+    }
     return false;
   };
 

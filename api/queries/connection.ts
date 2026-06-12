@@ -31,7 +31,7 @@ function pushSchema(db: Database.Database) {
     "bookings", "events", "clients",
     "vendor_images", "vendor_services", "vendors",
     "payments", "notifications", "event_items",
-    "transactions", "conversions", "users",
+    "transactions", "conversions", "users", "otp_codes",
   ];
   for (const t of tables) {
     try { db.exec(`DROP TABLE IF EXISTS ${t}`); } catch (e) {}
@@ -267,6 +267,14 @@ function pushSchema(db: Database.Database) {
     createdAt INTEGER DEFAULT (unixepoch()),
     updatedAt INTEGER DEFAULT (unixepoch()),
     lastSignInAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  db.exec(`CREATE TABLE otp_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    phone TEXT NOT NULL,
+    code TEXT NOT NULL,
+    createdAt INTEGER DEFAULT (unixepoch()),
+    expiresAt INTEGER NOT NULL
   )`);
 
   console.log("[DB] Tables created");
