@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#2BBCA8" />
     <title>SimpliPlan - Celebrating People</title>
+    <!-- Preload critical JS chunks for faster loading on slow connections -->
+    <link rel="preload" as="script" crossorigin href="/assets/vendor-DaI0oJKx.js">
+    <link rel="preload" as="script" crossorigin href="/assets/ui-DC2kU1jt.js">
+    <link rel="preload" as="script" crossorigin href="/assets/icons-DVS8QRLa.js">
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       body { background: #F1F5F9; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
@@ -41,14 +45,14 @@
           regs.forEach(function(r) { r.unregister(); });
         });
       }
-      // Timeout: if React doesn't mount in 15s, show error
+      // Timeout: if React doesn't mount in 45s, show error (Railway has slow bandwidth)
       setTimeout(function() {
         var root = document.getElementById('root');
         if (!root || root.children.length === 0) {
           document.getElementById('loading-error').style.display = 'block';
-          document.getElementById('loading-error').textContent = 'Taking longer than expected. Please check your connection and refresh.';
+          document.getElementById('loading-error').textContent = 'Still loading... Please wait a moment longer.';
         }
-      }, 15000);
+      }, 45000);
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
