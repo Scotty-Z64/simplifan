@@ -7,6 +7,20 @@ import path from "path";
 import { appRouter } from "./router";
 import { createContext } from "./context";
 
+// Test database connection at startup
+console.log("[BOOT] Starting SimpliPlan...");
+try {
+  const { getDb } = await import("./queries/connection");
+  const db = getDb();
+  const { vendors } = await import("@db/schema");
+  const { count } = await import("drizzle-orm");
+  const result = await db.select({ count: count() }).from(vendors);
+  console.log("[BOOT] DB connected! Vendors:", result[0]?.count ?? "unknown");
+} catch (e: any) {
+  console.error("[BOOT] DB CONNECTION FAILED:", e.message);
+  console.error("[BOOT] Full error:", e.stack?.substring(0, 500) || e);
+}
+
 const app = new Hono();
 const port = 3000;
 
