@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { TRPCProvider } from './providers/trpc'
 import { seedLocalStorage } from './lib/staticData'
 
 // Seed demo data for static mode (no backend needed)
@@ -22,6 +23,8 @@ if ('serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <TRPCProvider>
+      <App />
+    </TRPCProvider>
   </StrictMode>,
 )
