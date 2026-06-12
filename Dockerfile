@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt
 # Copy package files
 COPY package.json package-lock.json ./
 
-# Install ALL dependencies (dev + prod)
-RUN npm ci
+# Install dependencies (use npm install since lock file may be out of sync)
+RUN npm install
 
 # Copy source code
 COPY . .
@@ -19,5 +19,5 @@ RUN npm run build
 
 EXPOSE 3000
 
-# Run TypeScript directly with tsx (use full path, not npx)
+# Run TypeScript directly with tsx
 CMD ["./node_modules/.bin/tsx", "--tsconfig", "tsconfig.json", "api/boot.ts"]
