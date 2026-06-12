@@ -7,7 +7,7 @@ import * as relations from "@db/relations";
 const fullSchema = { ...schema, ...relations };
 
 let instance: ReturnType<typeof drizzle<typeof fullSchema>>;
-let dbPath = "/tmp/simplifan.db";
+let dbPath = "/tmp/simplifan-v2.db";
 
 export function getDb() {
   if (!instance) {
