@@ -46,14 +46,19 @@
         });
       }
       // Hide loading spinner once React mounts into #root
-      var hideCheck = setInterval(function() {
-        var root = document.getElementById('root');
-        if (root && root.children.length > 0) {
-          var loading = document.getElementById('loading');
-          if (loading) loading.style.display = 'none';
-          clearInterval(hideCheck);
-        }
-      }, 100);
+      function hideLoading() {
+        var loading = document.getElementById('loading');
+        if (loading) { loading.style.display = 'none'; loading.style.visibility = 'hidden'; loading.style.opacity = '0'; }
+      }
+      // Check immediately and via MutationObserver
+      var root = document.getElementById('root');
+      if (root && root.children.length > 0) { hideLoading(); }
+      if (window.MutationObserver) {
+        var obs = new MutationObserver(function() { if (root && root.children.length > 0) { hideLoading(); obs.disconnect(); } });
+        if (root) obs.observe(root, { childList: true });
+      } else {
+        setInterval(function() { if (root && root.children.length > 0) hideLoading(); }, 50);
+      }
       // Timeout: if React doesn't mount in 45s, show error
       setTimeout(function() {
         clearInterval(hideCheck);
