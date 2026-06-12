@@ -17,7 +17,6 @@ const queryClient = new QueryClient({
   },
 });
 
-// Static fallback data when API is unreachable
 const API_URL = import.meta.env.VITE_API_URL || "/api/trpc";
 
 const trpcClient = trpc.createClient({
@@ -25,24 +24,6 @@ const trpcClient = trpc.createClient({
     httpBatchLink({
       url: API_URL,
       transformer: superjson,
-      // Add timeout and error handling
-      headers() {
-        return {
-          "x-static-mode": "true",
-        };
-      },
-      fetch(input, init) {
-        return globalThis.fetch(input, {
-          ...(init ?? {}),
-          credentials: "include",
-        }).catch(() => {
-          // Return empty successful response for offline mode
-          return new Response(JSON.stringify({ result: { data: null } }), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          });
-        });
-      },
     }),
   ],
 });
