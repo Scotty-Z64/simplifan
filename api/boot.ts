@@ -54,13 +54,22 @@ try {
   const { appRouter } = await import("./router");
   const { createContext } = await import("./context");
   app.use("/api/trpc/*", async (c) => {
-    return fetchRequestHandler({ endpoint: "/api/trpc", req: c.req.raw, router: appRouter, createContext });
+    const res = await fetchRequestHandler({ endpoint: "/api/trpc", req: c.req.raw, router: appRouter, createContext });
+    // Clone response and add CORS headers for cross-origin frontend
+    const headers = new Headers(res.headers);
+    headers.set("Access-Control-Allow-Origin", "*");
+    headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    return new Response(res.body, { status: res.status, headers });
   });
   apiReady = true;
   console.log("[BOOT] API ready");
 } catch (e: any) {
   console.error("[BOOT] API fail:", e.message);
-  app.use("/api/trpc/*", (c) => c.json({ error: "API unavailable", message: e.message }, 503));
+  app.use("/api/trpc/*", (c) => {
+    c.header("Access-Control-Allow-Origin", "*");
+    return c.json({ error: "API unavailable", message: e.message }, 503);
+  });
 }
 
 // Static files with gzip compression
