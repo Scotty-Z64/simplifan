@@ -1,8 +1,9 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, Store, ArrowRight, Star, Shield, Zap, CheckCircle,
   ListChecks, Wallet, UserPlus, Timer, MessageCircle,
-  Facebook, Twitter, Music2, Sparkles, Heart, Award, Phone
+  Facebook, Twitter, Music2, Sparkles, Heart, Award, Phone, SkipForward
 } from 'lucide-react';
 import { WhatsAppPreview } from '@/components/WhatsAppPreview';
 
@@ -20,12 +21,34 @@ function SimpliPlanLogo({ size = 40 }: { size?: number }) {
   );
 }
 
+/* ─── Visual Onboarding Slides ─── */
+const onboardingSlides = [
+  {
+    image: '/images/hero-sa-celebration.jpg',
+    title: 'Welcome & Discover',
+    subtitle: 'Your Events Partner',
+    desc: 'Easily connect with suppliers specialising in event services.',
+  },
+  {
+    image: '/images/wedding-sa.jpg',
+    title: 'Plan Without Stress',
+    subtitle: 'AI-Powered Planning',
+    desc: 'Tell us your budget and guest count — we find vendors, get quotes, and track everything.',
+  },
+  {
+    image: '/images/birthday-sa.jpg',
+    title: 'Celebrate Your Way',
+    subtitle: 'Every Moment Matters',
+    desc: 'From Lobola to uMemulo, weddings to birthdays — we help you plan every celebration.',
+  },
+];
+
 const eventTypes = [
-  { name: 'Birthday', image: '/images/birthday-premium.jpg', path: '/client/planner', count: '12,500+', color: '#2BBCA8' },
-  { name: 'Wedding', image: '/images/wedding-premium.jpg', path: '/client/planner', count: '3,200+', color: '#F59E0B' },
-  { name: 'Funeral', image: '/images/funeral-premium.jpg', path: '/client/planner', count: '1,800+', color: '#64748B' },
-  { name: 'uMgidi', image: '/images/umgidi-premium.jpg', path: '/client/planner', count: '890+', color: '#8B5CF6' },
-  { name: 'uMemulo', image: '/images/umemulo-premium.jpg', path: '/client/planner', count: '650+', color: '#F43F5E' },
+  { name: 'Birthday', image: '/images/birthday-sa.jpg', path: '/client/planner', count: '12,500+', color: '#2BBCA8' },
+  { name: 'Wedding', image: '/images/wedding-sa.jpg', path: '/client/planner', count: '3,200+', color: '#F59E0B' },
+  { name: 'Funeral', image: '/images/funeral-sa.jpg', path: '/client/planner', count: '1,800+', color: '#64748B' },
+  { name: 'uMgidi', image: '/images/umgidi-sa.jpg', path: '/client/planner', count: '890+', color: '#8B5CF6' },
+  { name: 'uMemulo', image: '/images/umemulo-sa.jpg', path: '/client/planner', count: '650+', color: '#F43F5E' },
 ];
 
 const features = [
@@ -48,11 +71,129 @@ const testimonials = [
   { name: 'Sarah V.', event: '21st Birthday', text: 'The WhatsApp bot is genius. I planned my party while commuting on the taxi!', rating: 5 },
 ];
 
+/* ─── Onboarding Component ─── */
+function Onboarding({ onComplete }: { onComplete: () => void }) {
+  const [current, setCurrent] = useState(0);
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    // Auto-advance slides
+    const timer = setInterval(() => {
+      if (current < onboardingSlides.length - 1) {
+        setCurrent(c => c + 1);
+      }
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [current]);
+
+  const handleSkip = () => {
+    setIsVisible(false);
+    setTimeout(onComplete, 300);
+  };
+
+  const handleNext = () => {
+    if (current < onboardingSlides.length - 1) {
+      setCurrent(c => c + 1);
+    } else {
+      handleSkip();
+    }
+  };
+
+  if (!isVisible) return null;
+
+  const slide = onboardingSlides[current];
+
+  return (
+    <div className="fixed inset-0 z-[100] transition-opacity duration-300" style={{ background: '#000' }}>
+      {/* Full-bleed background image */}
+      <div className="absolute inset-0">
+        <img
+          src={slide.image}
+          alt={slide.title}
+          className="w-full h-full object-cover transition-all duration-700"
+          style={{ filter: 'brightness(0.85)' }}
+        />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.1) 100%)' }} />
+      </div>
+
+      {/* Skip button */}
+      <button
+        onClick={handleSkip}
+        className="absolute top-4 right-4 z-10 px-5 py-2 rounded-full text-sm font-medium transition-all hover:scale-105"
+        style={{ background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}
+      >
+        Skip
+      </button>
+
+      {/* Content card at bottom */}
+      <div className="absolute bottom-0 left-0 right-0 p-6">
+        <div
+          className="max-w-lg mx-auto rounded-3xl p-8 text-center transition-all duration-500"
+          style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)' }}
+        >
+          <h2 className="text-2xl font-bold mb-1" style={{ color: '#1a1a2e', fontFamily: "'Space Grotesk', sans-serif" }}>
+            {slide.title}
+          </h2>
+          <p className="text-lg font-medium mb-2" style={{ color: '#2BBCA8' }}>{slide.subtitle}</p>
+          <p className="text-sm mb-6" style={{ color: '#64748B' }}>{slide.desc}</p>
+
+          {/* Progress dots */}
+          <div className="flex items-center justify-center gap-2 mb-6">
+            {onboardingSlides.map((_, i) => (
+              <div
+                key={i}
+                className="h-2 rounded-full transition-all duration-300"
+                style={{
+                  width: i === current ? '24px' : '8px',
+                  background: i === current ? '#2BBCA8' : '#E2E8F0',
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Navigation */}
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => current > 0 && setCurrent(c => c - 1)}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all"
+              style={{
+                color: current > 0 ? '#64748B' : 'transparent',
+                pointerEvents: current > 0 ? 'auto' : 'none',
+              }}
+            >
+              <ArrowRight className="w-4 h-4 rotate-180" /> Back
+            </button>
+            <button
+              onClick={handleNext}
+              className="flex items-center gap-2 px-6 py-3 rounded-full text-sm font-bold text-white transition-all hover:shadow-lg hover:scale-105"
+              style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)', boxShadow: '0 4px 15px -3px rgba(43,188,168,0.4)' }}
+            >
+              {current === onboardingSlides.length - 1 ? 'Get Started' : 'Next'} <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PortalSelector() {
   const navigate = useNavigate();
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    // Check if user has seen onboarding before
+    return !localStorage.getItem('simplipan_onboarding_seen');
+  });
+
+  const handleOnboardingComplete = () => {
+    localStorage.setItem('simplipan_onboarding_seen', 'true');
+    setShowOnboarding(false);
+  };
 
   return (
     <div className="min-h-screen" style={{ background: '#E8EDF2' }}>
+      {/* Onboarding Overlay */}
+      {showOnboarding && <Onboarding onComplete={handleOnboardingComplete} />}
+
       {/* ═══════════════════════════════════════════
           NAVIGATION
           ═══════════════════════════════════════════ */}
@@ -80,15 +221,16 @@ export function PortalSelector() {
       </nav>
 
       {/* ═══════════════════════════════════════════
-          HERO — Full Visual Impact
+          HERO — Full Visual Impact with SA Imagery
           ═══════════════════════════════════════════ */}
       <section className="relative overflow-hidden" style={{ minHeight: '85vh' }}>
-        {/* Background Image */}
+        {/* Background Image — Full bleed authentic SA celebration */}
         <div className="absolute inset-0">
-          <img src="/images/hero-celebration.jpg" alt="Celebration" className="w-full h-full object-cover" />
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(15,23,42,0.85) 0%, rgba(15,23,42,0.7) 40%, rgba(43,188,168,0.3) 100%)' }} />
+          <img src="/images/hero-sa-celebration.jpg" alt="South African Celebration" className="w-full h-full object-cover" style={{ filter: 'brightness(0.7)' }} />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(15,23,42,0.8) 0%, rgba(15,23,42,0.5) 40%, rgba(43,188,168,0.2) 100%)' }} />
         </div>
-        {/* Floating particles effect */}
+
+        {/* Floating particles */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="absolute rounded-full animate-float"
@@ -97,7 +239,7 @@ export function PortalSelector() {
                 height: `${20 + i * 15}px`,
                 left: `${10 + i * 15}%`,
                 top: `${20 + (i % 3) * 25}%`,
-                background: i % 2 === 0 ? 'rgba(43,188,168,0.08)' : 'rgba(245,158,11,0.06)',
+                background: i % 2 === 0 ? 'rgba(43,188,168,0.1)' : 'rgba(245,158,11,0.08)',
                 filter: 'blur(2px)',
                 animationDelay: `${i * 0.5}s`,
                 animationDuration: `${3 + i * 0.5}s`
@@ -109,7 +251,7 @@ export function PortalSelector() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Left: Text */}
             <div className="pt-16 pb-16">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6" style={{ background: 'rgba(43,188,168,0.15)', border: '1px solid rgba(43,188,168,0.25)', backdropFilter: 'blur(10px)' }}>
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6" style={{ background: 'rgba(43,188,168,0.2)', border: '1px solid rgba(43,188,168,0.3)', backdropFilter: 'blur(10px)' }}>
                 <Sparkles className="w-4 h-4" style={{ color: '#2BBCA8' }} />
                 <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#2BBCA8' }}>Built for Mzansi</span>
               </div>
@@ -138,16 +280,16 @@ export function PortalSelector() {
               </div>
 
               {/* Trust badges */}
-              <div className="flex items-center gap-6">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                 {['Free to start', '500+ SA Vendors', 'PayFast Secure'].map((badge, i) => (
                   <span key={i} className="flex items-center gap-1.5 text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                    <CheckCircle className="w-4 h-4" style={{ color: '#2BBCA8' }} /> {badge}
+                    <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#2BBCA8' }} /> {badge}
                   </span>
                 ))}
               </div>
             </div>
 
-            {/* Right: WhatsApp Preview floating */}
+            {/* Right: WhatsApp Preview */}
             <div className="hidden lg:flex justify-center relative">
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-80 h-80 rounded-full" style={{ background: 'radial-gradient(circle, rgba(43,188,168,0.15) 0%, transparent 70%)' }} />
@@ -183,7 +325,7 @@ export function PortalSelector() {
       </section>
 
       {/* ═══════════════════════════════════════════
-          EVENT TYPES — Full Visual Cards
+          EVENT TYPES — Full Visual Cards (like TED)
           ═══════════════════════════════════════════ */}
       <section className="px-4 py-16">
         <div className="max-w-6xl mx-auto">
