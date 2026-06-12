@@ -21,9 +21,9 @@ export const users = mysqlTable("users", {
   email: varchar("email", { length: 320 }),
   avatar: text("avatar"),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull().$onUpdate(() => new Date()),
-  lastSignInAt: timestamp("lastSignInAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt"),
+  updatedAt: timestamp("updatedAt"),
+  lastSignInAt: timestamp("lastSignInAt"),
 });
 
 export type User = typeof users.$inferSelect;
@@ -38,7 +38,7 @@ export const clients = mysqlTable("clients", {
   location: varchar("location", { length: 255 }),
   avatar: varchar("avatar", { length: 10 }).default("C"),
   userId: bigint("userId", { mode: "number", unsigned: true }).references(() => users.id),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt"),
 });
 
 export type Client = typeof clients.$inferSelect;
@@ -69,8 +69,8 @@ export const vendors = mysqlTable("vendors", {
   subscriptionEndsAt: timestamp("subscriptionEndsAt"),
   isActive: boolean("isActive").default(true).notNull(),
   userId: bigint("userId", { mode: "number", unsigned: true }).references(() => users.id),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull().$onUpdate(() => new Date()),
+  createdAt: timestamp("createdAt"),
+  updatedAt: timestamp("updatedAt"),
 }, (table) => [
   index("category_idx").on(table.category),
   index("province_idx").on(table.province),
@@ -87,7 +87,7 @@ export const vendorServices = mysqlTable("vendor_services", {
   description: text("description"),
   price: decimal("price", { precision: 12, scale: 2 }),
   category: varchar("category", { length: 100 }),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt"),
 });
 
 export type VendorService = typeof vendorServices.$inferSelect;
@@ -98,7 +98,7 @@ export const vendorImages = mysqlTable("vendor_images", {
   vendorId: bigint("vendorId", { mode: "number", unsigned: true }).notNull().references(() => vendors.id),
   url: text("url").notNull(),
   caption: varchar("caption", { length: 255 }),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt"),
 });
 
 // ─── Events (Client Event Plans) ───
@@ -119,8 +119,8 @@ export const events = mysqlTable("events", {
   totalCost: decimal("totalCost", { precision: 12, scale: 2 }).default("0").notNull(),
   status: mysqlEnum("status", ["planning", "quoted", "deposit_paid", "confirmed", "ready", "completed", "cancelled"]).default("planning").notNull(),
   notes: text("notes"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull().$onUpdate(() => new Date()),
+  createdAt: timestamp("createdAt"),
+  updatedAt: timestamp("updatedAt"),
 });
 
 export type Event = typeof events.$inferSelect;
@@ -136,7 +136,7 @@ export const eventItems = mysqlTable("event_items", {
   price: decimal("price", { precision: 12, scale: 2 }).default("0").notNull(),
   status: mysqlEnum("status", ["pending", "quoted", "accepted", "booked", "completed", "declined"]).default("pending").notNull(),
   notes: text("notes"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt"),
 });
 
 export type EventItem = typeof eventItems.$inferSelect;
@@ -158,7 +158,7 @@ export const quotes = mysqlTable("quotes", {
   vendorMessage: text("vendorMessage"),
   status: mysqlEnum("status", ["submitted", "sent", "quoted", "accepted", "declined", "expired"]).default("submitted").notNull(),
   respondedAt: timestamp("respondedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt"),
 });
 
 export type Quote = typeof quotes.$inferSelect;
@@ -184,7 +184,7 @@ export const bookings = mysqlTable("bookings", {
   vendorConfirmedAt: timestamp("vendorConfirmedAt"),
   reviewSubmitted: boolean("reviewSubmitted").default(false).notNull(),
   status: mysqlEnum("status", ["pending", "confirmed", "deposit_paid", "completed", "disputed", "cancelled"]).default("pending").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt"),
 });
 
 export type Booking = typeof bookings.$inferSelect;
@@ -201,7 +201,7 @@ export const payments = mysqlTable("payments", {
   status: mysqlEnum("status", ["pending", "completed", "failed", "refunded"]).default("pending").notNull(),
   payfastStatus: varchar("payfastStatus", { length: 50 }),
   metadata: json("metadata"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt"),
   completedAt: timestamp("completedAt"),
 });
 
@@ -218,7 +218,7 @@ export const reviews = mysqlTable("reviews", {
   comment: text("comment"),
   eventType: varchar("eventType", { length: 100 }),
   verifiedBooking: boolean("verifiedBooking").default(true).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt"),
 });
 
 export type Review = typeof reviews.$inferSelect;
@@ -231,8 +231,8 @@ export const conversations = mysqlTable("conversations", {
   lastMessage: text("lastMessage"),
   clientUnread: int("clientUnread").default(0).notNull(),
   vendorUnread: int("vendorUnread").default(0).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull().$onUpdate(() => new Date()),
+  createdAt: timestamp("createdAt"),
+  updatedAt: timestamp("updatedAt"),
 });
 
 // ─── Messages ───
@@ -242,7 +242,7 @@ export const messages = mysqlTable("messages", {
   senderType: mysqlEnum("senderType", ["client", "vendor"]).notNull(),
   content: text("content").notNull(),
   read: boolean("read").default(false).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt"),
 });
 
 // ─── Notifications ───
@@ -255,7 +255,7 @@ export const notifications = mysqlTable("notifications", {
   message: text("message").notNull(),
   link: varchar("link", { length: 500 }),
   read: boolean("read").default(false).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt"),
 });
 
 // ─── Transactions (Vendor Earnings) ───
@@ -269,7 +269,7 @@ export const transactions = mysqlTable("transactions", {
   clientName: varchar("clientName", { length: 255 }),
   eventName: varchar("eventName", { length: 255 }),
   date: varchar("date", { length: 50 }),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt"),
 });
 
 export type Transaction = typeof transactions.$inferSelect;
@@ -284,5 +284,5 @@ export const conversions = mysqlTable("conversions", {
   clientId: bigint("clientId", { mode: "number", unsigned: true }),
   value: decimal("value", { precision: 12, scale: 2 }),
   metadata: json("metadata"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt"),
 });
