@@ -24,12 +24,20 @@ export const vendorRouter = createRouter({
       if (input?.featured) where.push(eq(vendors.featured, true));
       if (input?.search) where.push(like(vendors.businessName, `%${input.search}%`));
 
-      // Simple select without relational queries
-      const result = await db.select().from(vendors)
-        .where(where.length > 0 ? and(...where) : undefined)
-        .limit(input?.limit ?? 20)
-        .offset(input?.offset ?? 0)
-        .orderBy(desc(vendors.featured), desc(vendors.rating));
+      console.log("[VENDOR] Executing query...");
+      let result;
+      try {
+        result = await db.select().from(vendors)
+          .where(where.length > 0 ? and(...where) : undefined)
+          .limit(input?.limit ?? 20)
+          .offset(input?.offset ?? 0)
+          .orderBy(desc(vendors.featured), desc(vendors.rating));
+        console.log("[VENDOR] Query success, rows:", result.length);
+      } catch (e: any) {
+        console.error("[VENDOR] Query FAILED:", e.message);
+        console.error("[VENDOR] Full error:", e.stack?.substring(0, 500));
+        throw e;
+      }
 
       // Fetch services and images separately
       const vendorIds = result.map(v => v.id);
