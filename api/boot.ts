@@ -1,15 +1,18 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
+import { compress } from "hono/compress";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import fs from "fs";
 import path from "path";
-import { Paths } from "@contracts/constants";
 
 console.log("[BOOT] Starting SimpliPlan...");
 
 const app = new Hono();
 const port = 3000;
+
+// Enable gzip compression for all responses
+app.use("*", compress());
 
 // CORS
 app.use("*", async (c, next) => {
