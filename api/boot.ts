@@ -1,18 +1,39 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { serveStatic } from "@hono/node-server/serve-static";
-import { compress } from "hono/compress";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import fs from "fs";
 import path from "path";
+import zlib from "zlib";
 
 console.log("[BOOT] Starting SimpliPlan...");
 
 const app = new Hono();
 const port = 3000;
+const PUBLIC_DIR = path.resolve("dist/public");
 
-// Enable gzip compression for faster static file serving
-app.use("*", compress());
+// Pre-compress all static assets at startup
+const COMPRESSED_CACHE = new Map<string, Buffer>();
+
+function precompressAssets() {
+  const assetsDir = path.join(PUBLIC_DIR, "assets");
+  if (!fs.existsSync(assetsDir)) return;
+
+  const files = fs.readdirSync(assetsDir);
+  let total = 0;
+  for (const file of files) {
+    const filePath = path.join(assetsDir, file);
+    const stat = fs.statSync(filePath);
+    if (stat.isFile() && stat.size > 1024) {
+      const content = fs.readFileSync(filePath);
+      const compressed = zlib.gzipSync(content, { level: 9 });
+      COMPRESSED_CACHE.set(`/assets/${file}`, compressed);
+      total++;
+    }
+  }
+  console.log(`[BOOT] Pre-compressed ${total} assets`);
+}
+
+precompressAssets();
 
 // CORS
 app.use("*", async (c, next) => {
@@ -42,15 +63,53 @@ try {
   app.use("/api/trpc/*", (c) => c.json({ error: "API unavailable", message: e.message }, 503));
 }
 
-// Static files
-app.use("*", serveStatic({ root: "dist/public" }));
-app.notFound((c) => {
-  try {
-    const html = fs.readFileSync(path.resolve("dist/public/index.html"), "utf-8");
-    return c.html(html);
-  } catch {
-    return c.json({ error: "Not found" }, 404);
+// Static files with gzip compression
+app.use("*", async (c, next) => {
+  const url = new URL(c.req.url);
+  let filePath = path.join(PUBLIC_DIR, url.pathname);
+
+  // Default to index.html for SPA routes
+  if (url.pathname === "/" || !fs.existsSync(filePath)) {
+    filePath = path.join(PUBLIC_DIR, "index.html");
   }
+
+  if (!fs.existsSync(filePath)) {
+    return next();
+  }
+
+  const ext = path.extname(filePath);
+  const mimeTypes: Record<string, string> = {
+    ".js": "text/javascript",
+    ".css": "text/css",
+    ".html": "text/html",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".svg": "image/svg+xml",
+    ".json": "application/json",
+    ".ico": "image/x-icon",
+    ".woff2": "font/woff2",
+    ".woff": "font/woff",
+  };
+
+  const contentType = mimeTypes[ext] || "application/octet-stream";
+
+  // Check if we have a pre-compressed version
+  const relativePath = url.pathname === "/" ? "/index.html" : url.pathname;
+  const compressed = COMPRESSED_CACHE.get(relativePath);
+
+  if (compressed) {
+    c.header("Content-Type", contentType);
+    c.header("Content-Encoding", "gzip");
+    c.header("Content-Length", compressed.length.toString());
+    c.header("Cache-Control", "public, max-age=31536000, immutable");
+    return c.body(compressed);
+  }
+
+  // Serve uncompressed for small files / images
+  const content = fs.readFileSync(filePath);
+  c.header("Content-Type", contentType);
+  return c.body(content);
 });
 
 serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, () => {
