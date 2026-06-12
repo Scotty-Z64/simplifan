@@ -11,20 +11,28 @@ let instance: ReturnType<typeof drizzle<typeof fullSchema>>;
 export function getDb() {
   if (!instance) {
     const url = env.databaseUrl;
-    console.log("[DB] Connecting with URL:", url ? url.substring(0, 30) + "..." : "EMPTY");
+    console.log("[DB] Connecting... URL length:", url?.length || 0);
+    console.log("[DB] URL prefix:", url?.substring(0, 40) || "EMPTY");
     
-    // Create connection pool for regular MySQL
-    const pool = createPool({
-      uri: url,
-      connectionLimit: 5,
-      connectTimeout: 10000,
-      enableKeepAlive: true,
-    });
-    
-    instance = drizzle(pool, {
-      schema: fullSchema,
-      mode: "default", // Use regular MySQL mode, not PlanetScale
-    });
+    try {
+      const pool = createPool({
+        uri: url,
+        connectionLimit: 3,
+        connectTimeout: 15000,
+        acquireTimeout: 15000,
+        enableKeepAlive: true,
+      });
+      
+      instance = drizzle(pool, {
+        schema: fullSchema,
+        mode: "default",
+      });
+      
+      console.log("[DB] Drizzle instance created successfully");
+    } catch (e: any) {
+      console.error("[DB] FAILED to create pool:", e.message);
+      throw e;
+    }
   }
   return instance;
 }
