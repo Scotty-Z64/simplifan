@@ -56,8 +56,8 @@ function pushSchema(db: Database.Database) {
       subscriptionEndsAt TEXT,
       isActive INTEGER DEFAULT 1,
       userId INTEGER,
-      createdAt INTEGER,
-      updatedAt INTEGER
+      createdAt INTEGER NOT NULL DEFAULT (unixepoch()),
+      updatedAt INTEGER NOT NULL DEFAULT (unixepoch())
     )`,
     `CREATE TABLE IF NOT EXISTS vendor_services (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -174,6 +174,14 @@ function pushSchema(db: Database.Database) {
     } catch (e: any) {
       console.error("[DB] Table creation error:", e.message.substring(0, 100));
     }
+  }
+
+  // Create update triggers for updatedAt
+  const triggers = [
+    `CREATE TRIGGER IF NOT EXISTS vendors_updatedAt AFTER UPDATE ON vendors BEGIN UPDATE vendors SET updatedAt = unixepoch() WHERE id = NEW.id; END`,
+  ];
+  for (const t of triggers) {
+    try { db.exec(t); } catch (e) {}
   }
 
   // Seed data if empty
