@@ -44,8 +44,8 @@ export const notificationRouter = createRouter({
     }))
     .mutation(async ({ input }) => {
       const db = getDb();
-      const [result] = await db.insert(notifications).values(input);
-      return { id: Number(result.insertId), ...input };
+      const result = await db.insert(notifications).values(input);
+      return { id: Number(result.lastInsertRowid), ...input };
     }),
 
   markRead: publicQuery

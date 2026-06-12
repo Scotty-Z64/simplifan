@@ -64,14 +64,14 @@ export const bookingRouter = createRouter({
       const deposit = input.depositAmount ?? Math.round(input.amount * 0.5);
       const fee = input.platformFee ?? Math.round(input.amount * 0.05);
       const { amount, depositAmount, platformFee, ...rest } = input;
-      const [result] = await db.insert(bookings).values({
+      const result = await db.insert(bookings).values({
         ...rest,
         amount: amount.toString(),
         depositAmount: deposit.toString(),
         platformFee: fee.toString(),
         status: "pending",
       });
-      return { id: Number(result.insertId), ...input, depositAmount: deposit, platformFee: fee };
+      return { id: Number(result.lastInsertRowid), ...input, depositAmount: deposit, platformFee: fee };
     }),
 
   confirm: publicQuery

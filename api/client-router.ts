@@ -29,11 +29,11 @@ export const clientRouter = createRouter({
       const existing = queryOne("SELECT * FROM clients WHERE phone = ?", [input.phone]);
       if (existing) return existing;
 
-      const [result] = await db.insert(clients).values({
+      const result = await db.insert(clients).values({
         ...input,
         avatar: input.name.charAt(0).toUpperCase(),
       });
-      return { id: Number(result.insertId), ...input };
+      return { id: Number(result.lastInsertRowid), ...input };
     }),
 
   update: publicQuery

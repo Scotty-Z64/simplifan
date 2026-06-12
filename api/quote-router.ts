@@ -58,8 +58,8 @@ export const quoteRouter = createRouter({
     }))
     .mutation(async ({ input }) => {
       const db = getDb();
-      const [result] = await db.insert(quotes).values(input);
-      return { id: Number(result.insertId), ...input };
+      const result = await db.insert(quotes).values(input);
+      return { id: Number(result.lastInsertRowid), ...input };
     }),
 
   respond: publicQuery

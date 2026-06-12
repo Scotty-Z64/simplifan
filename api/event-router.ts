@@ -71,14 +71,14 @@ export const eventRouter = createRouter({
       const db = getDb();
       const { items, budget, ...eventData } = input;
 
-      const [result] = await db.insert(events).values({
+      const result = await db.insert(events).values({
         ...eventData,
         budget: budget.toString(),
         totalCost: "0",
         status: "planning",
       });
 
-      const eventId = Number(result.insertId);
+      const eventId = Number(result.lastInsertRowid);
 
       if (items && items.length > 0) {
         await db.insert(eventItems).values(

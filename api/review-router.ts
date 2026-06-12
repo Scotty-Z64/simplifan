@@ -58,7 +58,7 @@ export const reviewRouter = createRouter({
           .where(eq(bookings.id, input.bookingId));
       }
 
-      const [result] = await db.insert(reviews).values(input);
+      const result = await db.insert(reviews).values(input);
 
       // Recalculate vendor average rating
       const { vendors } = await import("@db/schema");
@@ -72,7 +72,7 @@ export const reviewRouter = createRouter({
         jobs: Number(avgResult?.count ?? 0),
       }).where(eq(vendors.id, input.vendorId));
 
-      return { id: Number(result.insertId), ...input };
+      return { id: Number(result.lastInsertRowid), ...input };
     }),
 
   vendorSummary: publicQuery

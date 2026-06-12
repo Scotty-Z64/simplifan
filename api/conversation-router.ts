@@ -58,8 +58,8 @@ export const conversationRouter = createRouter({
       );
       if (existing) return existing;
 
-      const [result] = await db.insert(conversations).values(input);
-      return { id: Number(result.insertId), ...input, clientUnread: 0, vendorUnread: 0 };
+      const result = await db.insert(conversations).values(input);
+      return { id: Number(result.lastInsertRowid), ...input, clientUnread: 0, vendorUnread: 0 };
     }),
 
   sendMessage: publicQuery

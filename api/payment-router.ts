@@ -57,12 +57,12 @@ export const paymentRouter = createRouter({
     }))
     .mutation(async ({ input }) => {
       const db = getDb();
-      const [result] = await db.insert(payments).values({
+      const result = await db.insert(payments).values({
         ...input,
         amount: input.amount.toString(),
         status: "pending",
       });
-      return { id: Number(result.insertId), ...input };
+      return { id: Number(result.lastInsertRowid), ...input };
     }),
 
   verify: publicQuery
