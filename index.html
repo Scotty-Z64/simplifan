@@ -16,6 +16,29 @@
   </head>
   <body>
     <div id="root"></div>
+    <div id="error-display" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#1a1a2e;color:#fff;padding:20px;z-index:99999;font-family:monospace;font-size:14px;overflow:auto;">
+      <h3 style="color:#ff6b6b;">Loading Error</h3>
+      <pre id="error-text"></pre>
+    </div>
+    <script>
+      window.onerror = function(msg, url, line, col, err) {
+        var display = document.getElementById('error-display');
+        var text = document.getElementById('error-text');
+        if (display && text) {
+          display.style.display = 'block';
+          text.textContent = msg + '\n at ' + url + ':' + line + ':' + col + '\n' + (err && err.stack ? err.stack : '');
+        }
+        return false;
+      };
+      window.onunhandledrejection = function(e) {
+        var display = document.getElementById('error-display');
+        var text = document.getElementById('error-text');
+        if (display && text) {
+          display.style.display = 'block';
+          text.textContent = 'Unhandled Promise Rejection:\n' + (e.reason && e.reason.stack ? e.reason.stack : String(e.reason));
+        }
+      };
+    </script>
     <script type="module" src="/src/main.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
