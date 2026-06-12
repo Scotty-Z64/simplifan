@@ -25,7 +25,31 @@ export const vendorRouter = createRouter({
       if (input?.featured) conditions.push(eq(vendors.featured, 1));
       if (input?.search) conditions.push(like(vendors.businessName, `%${input.search}%`));
 
-      const result = await db.select().from(vendors)
+      // Select specific columns to avoid SQLite quoting issues with timestamps
+      const result = await db.select({
+        id: vendors.id,
+        businessName: vendors.businessName,
+        ownerName: vendors.ownerName,
+        email: vendors.email,
+        phone: vendors.phone,
+        category: vendors.category,
+        subcategory: vendors.subcategory,
+        bio: vendors.bio,
+        province: vendors.province,
+        city: vendors.city,
+        address: vendors.address,
+        priceRange: vendors.priceRange,
+        yearsInBusiness: vendors.yearsInBusiness,
+        avatar: vendors.avatar,
+        logoUrl: vendors.logoUrl,
+        rating: vendors.rating,
+        jobs: vendors.jobs,
+        verified: vendors.verified,
+        featured: vendors.featured,
+        tier: vendors.tier,
+        subscriptionStatus: vendors.subscriptionStatus,
+        isActive: vendors.isActive,
+      }).from(vendors)
         .where(conditions.length > 0 ? and(...conditions) : undefined)
         .limit(input?.limit ?? 20)
         .offset(input?.offset ?? 0)
