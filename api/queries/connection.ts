@@ -1,202 +1,276 @@
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
-import { env } from "../lib/env";
 import * as schema from "@db/schema";
 import * as relations from "@db/relations";
 
 const fullSchema = { ...schema, ...relations };
 
 let instance: ReturnType<typeof drizzle<typeof fullSchema>>;
-let dbPath = "/tmp/simplifan-v4.db";
+let dbPath = "/tmp/simplifan-v6.db";
 
 export function getDb() {
   if (!instance) {
     console.log("[DB] Using SQLite at:", dbPath);
-    
+
     const db = new Database(dbPath);
     db.pragma("journal_mode = WAL");
-    
+
     instance = drizzle(db, { schema: fullSchema });
-    
-    // Auto-create tables using Drizzle's push
+
     pushSchema(db);
-    
+
     console.log("[DB] SQLite ready");
   }
   return instance;
 }
 
 function pushSchema(db: Database.Database) {
-  // Drop old tables if they have wrong schema
-  try {
-    const cols = db.pragma("table_info(vendors)") as any[];
-    const hasCreatedAt = cols.some(c => c.name.toLowerCase() === 'createdat');
-    if (hasCreatedAt) {
-      // Check if createdAt has notnull
-      const caCol = cols.find(c => c.name.toLowerCase() === 'createdat');
-      if (caCol && !caCol.notnull) {
-        console.log("[DB] Dropping old tables with wrong schema...");
-        db.exec(`DROP TABLE IF EXISTS messages`);
-        db.exec(`DROP TABLE IF EXISTS conversations`);
-        db.exec(`DROP TABLE IF EXISTS reviews`);
-        db.exec(`DROP TABLE IF EXISTS quotes`);
-        db.exec(`DROP TABLE IF EXISTS bookings`);
-        db.exec(`DROP TABLE IF EXISTS events`);
-        db.exec(`DROP TABLE IF EXISTS clients`);
-        db.exec(`DROP TABLE IF EXISTS vendor_images`);
-        db.exec(`DROP TABLE IF EXISTS vendor_services`);
-        db.exec(`DROP TABLE IF EXISTS vendors`);
-      }
-    }
-  } catch (e) {}
-
-  // Create tables with EXACT column names Drizzle expects (double-quoted)
+  // Drop and recreate to ensure clean schema
   const tables = [
-    `CREATE TABLE IF NOT EXISTS vendors (
-      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-      "businessName" TEXT NOT NULL,
-      "ownerName" TEXT,
-      "email" TEXT,
-      "phone" TEXT,
-      "category" TEXT,
-      "subcategory" TEXT,
-      "bio" TEXT,
-      "province" TEXT,
-      "city" TEXT,
-      "address" TEXT,
-      "priceRange" TEXT,
-      "yearsInBusiness" INTEGER,
-      "avatar" TEXT,
-      "logoUrl" TEXT,
-      "rating" REAL DEFAULT 0,
-      "jobs" INTEGER DEFAULT 0,
-      "verified" INTEGER DEFAULT 0,
-      "featured" INTEGER DEFAULT 0,
-      "tier" TEXT DEFAULT 'starter',
-      "subscriptionStatus" TEXT DEFAULT 'trial',
-      "subscriptionEndsAt" TEXT,
-      "isActive" INTEGER DEFAULT 1,
-      "userId" INTEGER
-    )`,
-    `CREATE TABLE IF NOT EXISTS vendor_services (
-      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-      "vendorId" INTEGER NOT NULL,
-      "name" TEXT NOT NULL,
-      "description" TEXT,
-      "price" TEXT,
-      "category" TEXT
-    )`,
-    `CREATE TABLE IF NOT EXISTS vendor_images (
-      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-      "vendorId" INTEGER NOT NULL,
-      "url" TEXT NOT NULL,
-      "caption" TEXT
-    )`,
-    `CREATE TABLE IF NOT EXISTS clients (
-      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-      "name" TEXT NOT NULL,
-      "email" TEXT,
-      "phone" TEXT,
-      "location" TEXT,
-      "avatar" TEXT
-    )`,
-    `CREATE TABLE IF NOT EXISTS events (
-      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-      "clientId" INTEGER,
-      "clientName" TEXT,
-      "clientPhone" TEXT,
-      "eventType" TEXT,
-      "eventDate" TEXT,
-      "eventTime" TEXT,
-      "guestCount" INTEGER,
-      "province" TEXT,
-      "city" TEXT,
-      "area" TEXT,
-      "venue" TEXT,
-      "budget" TEXT,
-      "totalCost" TEXT DEFAULT '0',
-      "status" TEXT DEFAULT 'planning',
-      "notes" TEXT
-    )`,
-    `CREATE TABLE IF NOT EXISTS bookings (
-      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-      "eventId" INTEGER,
-      "clientId" INTEGER,
-      "clientName" TEXT,
-      "clientPhone" TEXT,
-      "vendorId" INTEGER,
-      "vendorName" TEXT,
-      "eventType" TEXT,
-      "eventDate" TEXT,
-      "amount" TEXT,
-      "depositAmount" TEXT,
-      "platformFee" TEXT,
-      "status" TEXT DEFAULT 'pending',
-      "clientConfirmed" INTEGER DEFAULT 0,
-      "vendorConfirmed" INTEGER DEFAULT 0,
-      "reviewSubmitted" INTEGER DEFAULT 0
-    )`,
-    `CREATE TABLE IF NOT EXISTS reviews (
-      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-      "vendorId" INTEGER,
-      "clientId" INTEGER,
-      "clientName" TEXT,
-      "bookingId" INTEGER,
-      "rating" INTEGER,
-      "comment" TEXT,
-      "eventType" TEXT,
-      "verifiedBooking" INTEGER DEFAULT 0
-    )`,
-    `CREATE TABLE IF NOT EXISTS quotes (
-      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-      "eventId" INTEGER,
-      "clientId" INTEGER,
-      "clientName" TEXT,
-      "clientPhone" TEXT,
-      "vendorId" INTEGER,
-      "eventType" TEXT,
-      "eventDate" TEXT,
-      "guestCount" INTEGER,
-      "province" TEXT,
-      "notes" TEXT,
-      "quotedAmount" TEXT,
-      "vendorMessage" TEXT,
-      "status" TEXT DEFAULT 'submitted',
-      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch())
-    )`,
-    `CREATE TABLE IF NOT EXISTS conversations (
-      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-      "clientId" INTEGER,
-      "vendorId" INTEGER,
-      "lastMessage" TEXT,
-      "clientUnread" INTEGER DEFAULT 0,
-      "vendorUnread" INTEGER DEFAULT 0,
-      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch())
-    )`,
-    `CREATE TABLE IF NOT EXISTS messages (
-      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-      "conversationId" INTEGER,
-      "senderType" TEXT,
-      "content" TEXT,
-      "read" INTEGER DEFAULT 0,
-      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch())
-    )`,
+    "messages", "conversations", "reviews", "quotes",
+    "bookings", "events", "clients",
+    "vendor_images", "vendor_services", "vendors",
+    "payments", "notifications", "event_items",
+    "transactions", "conversions", "users",
   ];
-
-  for (const sql of tables) {
-    try {
-      db.exec(sql);
-    } catch (e: any) {
-      console.error("[DB] Table creation error:", e.message.substring(0, 100));
-    }
+  for (const t of tables) {
+    try { db.exec(`DROP TABLE IF EXISTS ${t}`); } catch (e) {}
   }
 
-  // Seed data if empty
-  const count = db.prepare("SELECT COUNT(*) as c FROM vendors").get() as any;
-  if (count.c === 0) {
-    console.log("[DB] Seeding demo data...");
-    seedData(db);
-  }
+  // Create tables with createdAt/updatedAt that Drizzle expects
+  db.exec(`CREATE TABLE vendors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    businessName TEXT NOT NULL,
+    ownerName TEXT,
+    email TEXT,
+    phone TEXT,
+    category TEXT,
+    subcategory TEXT,
+    bio TEXT,
+    province TEXT,
+    city TEXT,
+    address TEXT,
+    priceRange TEXT,
+    yearsInBusiness INTEGER,
+    avatar TEXT,
+    logoUrl TEXT,
+    rating REAL DEFAULT 0,
+    jobs INTEGER DEFAULT 0,
+    verified INTEGER DEFAULT 0,
+    featured INTEGER DEFAULT 0,
+    tier TEXT DEFAULT 'starter',
+    subscriptionStatus TEXT DEFAULT 'trial',
+    subscriptionEndsAt TEXT,
+    isActive INTEGER DEFAULT 1,
+    userId INTEGER,
+    createdAt INTEGER DEFAULT (unixepoch()),
+    updatedAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  db.exec(`CREATE TABLE vendor_services (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vendorId INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    price TEXT,
+    category TEXT,
+    createdAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  db.exec(`CREATE TABLE vendor_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vendorId INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    caption TEXT,
+    createdAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  db.exec(`CREATE TABLE clients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT,
+    phone TEXT,
+    location TEXT,
+    avatar TEXT,
+    userId INTEGER,
+    createdAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  db.exec(`CREATE TABLE events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    clientId INTEGER,
+    clientName TEXT,
+    clientPhone TEXT,
+    eventType TEXT,
+    eventDate TEXT,
+    eventTime TEXT,
+    guestCount INTEGER,
+    province TEXT,
+    city TEXT,
+    area TEXT,
+    venue TEXT,
+    budget TEXT,
+    totalCost TEXT DEFAULT '0',
+    status TEXT DEFAULT 'planning',
+    notes TEXT,
+    createdAt INTEGER DEFAULT (unixepoch()),
+    updatedAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  db.exec(`CREATE TABLE event_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    eventId INTEGER NOT NULL,
+    category TEXT NOT NULL,
+    service TEXT,
+    vendorId INTEGER,
+    vendorName TEXT,
+    price TEXT DEFAULT '0',
+    status TEXT DEFAULT 'pending',
+    notes TEXT,
+    createdAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  db.exec(`CREATE TABLE bookings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    eventId INTEGER,
+    quoteId INTEGER,
+    clientId INTEGER,
+    clientName TEXT,
+    clientPhone TEXT,
+    vendorId INTEGER,
+    vendorName TEXT,
+    eventType TEXT,
+    eventDate TEXT,
+    amount TEXT,
+    depositAmount TEXT,
+    platformFee TEXT,
+    status TEXT DEFAULT 'pending',
+    clientConfirmed INTEGER DEFAULT 0,
+    vendorConfirmed INTEGER DEFAULT 0,
+    clientConfirmedAt TEXT,
+    vendorConfirmedAt TEXT,
+    reviewSubmitted INTEGER DEFAULT 0,
+    createdAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  db.exec(`CREATE TABLE reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vendorId INTEGER,
+    clientId INTEGER,
+    clientName TEXT,
+    bookingId INTEGER,
+    rating INTEGER,
+    comment TEXT,
+    eventType TEXT,
+    verifiedBooking INTEGER DEFAULT 0,
+    createdAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  db.exec(`CREATE TABLE quotes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    eventId INTEGER,
+    clientId INTEGER,
+    clientName TEXT,
+    clientPhone TEXT,
+    vendorId INTEGER,
+    eventType TEXT,
+    eventDate TEXT,
+    guestCount TEXT,
+    province TEXT,
+    notes TEXT,
+    quotedAmount TEXT,
+    vendorMessage TEXT,
+    status TEXT DEFAULT 'submitted',
+    respondedAt TEXT,
+    createdAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  db.exec(`CREATE TABLE conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    clientId INTEGER,
+    vendorId INTEGER,
+    lastMessage TEXT,
+    clientUnread INTEGER DEFAULT 0,
+    vendorUnread INTEGER DEFAULT 0,
+    createdAt INTEGER DEFAULT (unixepoch()),
+    updatedAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  db.exec(`CREATE TABLE messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversationId INTEGER,
+    senderType TEXT,
+    content TEXT,
+    read INTEGER DEFAULT 0,
+    createdAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  db.exec(`CREATE TABLE payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bookingId INTEGER,
+    vendorId INTEGER,
+    clientId INTEGER,
+    payfastPaymentId TEXT,
+    amount TEXT,
+    type TEXT,
+    status TEXT DEFAULT 'pending',
+    payfastStatus TEXT,
+    metadata TEXT,
+    createdAt INTEGER DEFAULT (unixepoch()),
+    completedAt TEXT
+  )`);
+
+  db.exec(`CREATE TABLE notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER,
+    userType TEXT,
+    type TEXT,
+    title TEXT,
+    message TEXT,
+    link TEXT,
+    read INTEGER DEFAULT 0,
+    createdAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  db.exec(`CREATE TABLE transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vendorId INTEGER,
+    bookingId INTEGER,
+    amount TEXT,
+    type TEXT,
+    status TEXT DEFAULT 'pending',
+    clientName TEXT,
+    eventName TEXT,
+    date TEXT,
+    createdAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  db.exec(`CREATE TABLE conversions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    stage TEXT,
+    source TEXT,
+    bookingId INTEGER,
+    vendorId INTEGER,
+    clientId INTEGER,
+    value TEXT,
+    metadata TEXT,
+    createdAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  db.exec(`CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    unionId TEXT,
+    name TEXT,
+    email TEXT,
+    avatar TEXT,
+    role TEXT DEFAULT 'user',
+    createdAt INTEGER DEFAULT (unixepoch()),
+    updatedAt INTEGER DEFAULT (unixepoch()),
+    lastSignInAt INTEGER DEFAULT (unixepoch())
+  )`);
+
+  console.log("[DB] Tables created");
+  seedData(db);
 }
 
 function seedData(db: Database.Database) {
@@ -216,9 +290,7 @@ function seedData(db: Database.Database) {
   ];
 
   const stmt = db.prepare(`INSERT INTO vendors (businessName, ownerName, email, phone, category, province, city, priceRange, yearsInBusiness, rating, bio, tier, featured, verified, subscriptionStatus, isActive, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  for (const v of vendorsData) {
-    stmt.run(v);
-  }
+  for (const v of vendorsData) stmt.run(v);
 
   db.prepare(`INSERT INTO vendor_services (vendorId, name, description, price, category) VALUES (?, ?, ?, ?, ?)`).run(1, 'Buffet Catering', 'Full buffet service with setup', '350.00', 'Catering');
   db.prepare(`INSERT INTO vendor_services (vendorId, name, description, price, category) VALUES (?, ?, ?, ?, ?)`).run(2, 'DJ + Sound System', 'Full PA system with DJ', '5500.00', 'Music');
@@ -244,10 +316,9 @@ function seedData(db: Database.Database) {
   db.prepare(`INSERT INTO messages (conversationId, senderType, content, read) VALUES (?, ?, ?, ?)`).run(1, 'vendor', 'Congratulations! We would love to be part of your special day.', 1);
   db.prepare(`INSERT INTO messages (conversationId, senderType, content, read) VALUES (?, ?, ?, ?)`).run(1, 'client', 'Around 120 guests. Can you accommodate dietary requirements?', 0);
 
-  console.log("[DB] Demo data seeded!");
+  console.log("[DB] Seeded!");
 }
 
 export function getPool() {
   return (getDb() as any).$client;
 }
- 

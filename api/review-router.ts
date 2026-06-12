@@ -1,8 +1,20 @@
 import { z } from "zod";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware";
-import { getDb } from "./queries/connection";
+import { getDb, getPool } from "./queries/connection";
 import { reviews, bookings } from "@db/schema";
+
+function query(sqlStr: string, params?: any[]) {
+  const db = getPool();
+  const stmt = db.prepare(sqlStr);
+  return params ? stmt.all(...params) : stmt.all();
+}
+
+function queryOne(sqlStr: string, params?: any[]) {
+  const db = getPool();
+  const stmt = db.prepare(sqlStr);
+  return params ? stmt.get(...params) : stmt.get();
+}
 
 export const reviewRouter = createRouter({
   list: publicQuery
@@ -13,18 +25,17 @@ export const reviewRouter = createRouter({
       limit: z.number().min(1).max(100).default(50),
     }).optional())
     .query(async ({ input }) => {
-      const db = getDb();
-      const where = [];
-      if (input?.vendorId) where.push(eq(reviews.vendorId, input.vendorId));
-      if (input?.clientId) where.push(eq(reviews.clientId, input.clientId));
-      if (input?.verified !== undefined) where.push(eq(reviews.verifiedBooking, input.verified));
+      const conditions: string[] = [];
+      const params: any[] = [];
 
-      return db.query.reviews.findMany({
-        where: where.length > 0 ? and(...where) : undefined,
-        limit: input?.limit ?? 50,
-        orderBy: [desc(reviews.createdAt)],
-        with: { vendor: true, client: true },
-      });
+      if (input?.vendorId) { conditions.push("vendorId = ?"); params.push(input.vendorId); }
+      if (input?.clientId) { conditions.push("clientId = ?"); params.push(input.clientId); }
+      if (input?.verified !== undefined) { conditions.push("verifiedBooking = ?"); params.push(input.verified ? 1 : 0); }
+
+      const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+      const limit = input?.limit ?? 50;
+
+      return query(`SELECT * FROM reviews ${where} ORDER BY id DESC LIMIT ?`, [...params, limit]);
     }),
 
   create: publicQuery
@@ -47,19 +58,18 @@ export const reviewRouter = createRouter({
           .where(eq(bookings.id, input.bookingId));
       }
 
-      // Update vendor rating
       const [result] = await db.insert(reviews).values(input);
 
       // Recalculate vendor average rating
-      const reviewData = await db.select({
-        avgRating: sql<number>`AVG(${reviews.rating})`,
-        count: sql<number>`COUNT(*)`,
-      }).from(reviews).where(eq(reviews.vendorId, input.vendorId));
-
       const { vendors } = await import("@db/schema");
+      const avgResult = queryOne(
+        "SELECT AVG(rating) as avgRating, COUNT(*) as count FROM reviews WHERE vendorId = ?",
+        [input.vendorId]
+      ) as any;
+
       await db.update(vendors).set({
-        rating: String(reviewData[0]?.avgRating ?? 4.5),
-        jobs: Number(reviewData[0]?.count ?? 0),
+        rating: String(avgResult?.avgRating ?? 4.5),
+        jobs: Number(avgResult?.count ?? 0),
       }).where(eq(vendors.id, input.vendorId));
 
       return { id: Number(result.insertId), ...input };
@@ -68,17 +78,19 @@ export const reviewRouter = createRouter({
   vendorSummary: publicQuery
     .input(z.object({ vendorId: z.number() }))
     .query(async ({ input }) => {
-      const db = getDb();
-      const result = await db.select({
-        avgRating: sql<number>`COALESCE(AVG(${reviews.rating}), 0)`,
-        totalReviews: sql<number>`COUNT(*)`,
-        fiveStar: sql<number>`SUM(CASE WHEN ${reviews.rating} = 5 THEN 1 ELSE 0 END)`,
-        fourStar: sql<number>`SUM(CASE WHEN ${reviews.rating} = 4 THEN 1 ELSE 0 END)`,
-        threeStar: sql<number>`SUM(CASE WHEN ${reviews.rating} = 3 THEN 1 ELSE 0 END)`,
-        twoStar: sql<number>`SUM(CASE WHEN ${reviews.rating} = 2 THEN 1 ELSE 0 END)`,
-        oneStar: sql<number>`SUM(CASE WHEN ${reviews.rating} = 1 THEN 1 ELSE 0 END)`,
-      }).from(reviews).where(eq(reviews.vendorId, input.vendorId));
+      const result = queryOne(
+        `SELECT 
+          COALESCE(AVG(rating), 0) as avgRating,
+          COUNT(*) as totalReviews,
+          SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) as fiveStar,
+          SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) as fourStar,
+          SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as threeStar,
+          SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) as twoStar,
+          SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as oneStar
+        FROM reviews WHERE vendorId = ?`,
+        [input.vendorId]
+      ) as any;
 
-      return result[0] ?? { avgRating: 0, totalReviews: 0, fiveStar: 0, fourStar: 0, threeStar: 0, twoStar: 0, oneStar: 0 };
+      return result ?? { avgRating: 0, totalReviews: 0, fiveStar: 0, fourStar: 0, threeStar: 0, twoStar: 0, oneStar: 0 };
     }),
 });

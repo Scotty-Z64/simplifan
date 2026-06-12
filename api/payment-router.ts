@@ -1,8 +1,20 @@
 import { z } from "zod";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware";
-import { getDb } from "./queries/connection";
+import { getDb, getPool } from "./queries/connection";
 import { payments } from "@db/schema";
+
+function query(sqlStr: string, params?: any[]) {
+  const db = getPool();
+  const stmt = db.prepare(sqlStr);
+  return params ? stmt.all(...params) : stmt.all();
+}
+
+function queryOne(sqlStr: string, params?: any[]) {
+  const db = getPool();
+  const stmt = db.prepare(sqlStr);
+  return params ? stmt.get(...params) : stmt.get();
+}
 
 // PayFast sandbox config
 const PAYFAST_MERCHANT_ID = "10000100";
@@ -20,18 +32,18 @@ export const paymentRouter = createRouter({
       limit: z.number().min(1).max(100).default(50),
     }).optional())
     .query(async ({ input }) => {
-      const db = getDb();
-      const where = [];
-      if (input?.bookingId) where.push(eq(payments.bookingId, input.bookingId));
-      if (input?.vendorId) where.push(eq(payments.vendorId, input.vendorId));
-      if (input?.clientId) where.push(eq(payments.clientId, input.clientId));
-      if (input?.status) where.push(eq(payments.status, input.status as any));
+      const conditions: string[] = [];
+      const params: any[] = [];
 
-      return db.query.payments.findMany({
-        where: where.length > 0 ? and(...where) : undefined,
-        limit: input?.limit ?? 50,
-        orderBy: [desc(payments.createdAt)],
-      });
+      if (input?.bookingId) { conditions.push("bookingId = ?"); params.push(input.bookingId); }
+      if (input?.vendorId) { conditions.push("vendorId = ?"); params.push(input.vendorId); }
+      if (input?.clientId) { conditions.push("clientId = ?"); params.push(input.clientId); }
+      if (input?.status) { conditions.push("status = ?"); params.push(input.status); }
+
+      const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+      const limit = input?.limit ?? 50;
+
+      return query(`SELECT * FROM payments ${where} ORDER BY id DESC LIMIT ?`, [...params, limit]);
     }),
 
   create: publicQuery
@@ -60,22 +72,18 @@ export const paymentRouter = createRouter({
     }))
     .mutation(async ({ input }) => {
       const db = getDb();
-      const payment = await db.query.payments.findFirst({
-        where: eq(payments.payfastPaymentId, input.payfastPaymentId),
-      });
+      const payment = queryOne("SELECT * FROM payments WHERE payfastPaymentId = ?", [input.payfastPaymentId]);
       if (!payment) return { success: false, error: "Payment not found" };
 
       const isComplete = input.status === "COMPLETE";
       await db.update(payments).set({
         status: isComplete ? "completed" : "failed",
         payfastStatus: input.status,
-        completedAt: isComplete ? new Date() : null,
-      }).where(eq(payments.id, payment.id));
+      }).where(eq(payments.id, (payment as any).id));
 
-      return { success: true, paymentId: payment.id };
+      return { success: true, paymentId: (payment as any).id };
     }),
 
-  // Initiate PayFast payment - returns form fields for client-side submission
   initiate: publicQuery
     .input(z.object({
       amount: z.number().positive(),
@@ -92,7 +100,6 @@ export const paymentRouter = createRouter({
     .query(({ input }) => {
       const { amount, itemName, itemDescription, returnUrl, cancelUrl, notifyUrl, bookingId, vendorId, clientName, clientEmail } = input;
 
-      // Generate signature
       const data: Record<string, string> = {
         merchant_id: PAYFAST_MERCHANT_ID,
         merchant_key: PAYFAST_MERCHANT_KEY,
@@ -109,20 +116,6 @@ export const paymentRouter = createRouter({
         ...(vendorId ? { custom_str2: vendorId } : {}),
       };
 
-      // Build signature string
-      const sortedKeys = Object.keys(data).sort();
-      let sigStr = "";
-      for (const key of sortedKeys) {
-        sigStr += `${key}=${encodeURIComponent(data[key] ?? "")}&`;
-      }
-      sigStr = sigStr.slice(0, -1);
-      if (PAYFAST_PASSPHRASE) {
-        sigStr += `&passphrase=${encodeURIComponent(PAYFAST_PASSPHRASE)}`;
-      }
-
-      // MD5 hash would be computed server-side with crypto module
-      // const signature = crypto.createHash('md5').update(sigStr).digest('hex');
-
       return {
         url: PAYFAST_URL,
         fields: data,
@@ -134,14 +127,10 @@ export const paymentRouter = createRouter({
   vendorEarnings: publicQuery
     .input(z.object({ vendorId: z.number() }))
     .query(async ({ input }) => {
-      const db = getDb();
-      const vendorPayments = await db.query.payments.findMany({
-        where: and(
-          eq(payments.vendorId, input.vendorId),
-          eq(payments.status, "completed")
-        ),
-        orderBy: [desc(payments.createdAt)],
-      });
+      const vendorPayments = query(
+        "SELECT * FROM payments WHERE vendorId = ? AND status = 'completed' ORDER BY id DESC",
+        [input.vendorId]
+      ) as any[];
 
       const totalGross = vendorPayments.reduce((s, p) => s + Number(p.amount), 0);
       const platformFees = vendorPayments.filter(p => p.type === "platform_fee").reduce((s, p) => s + Number(p.amount), 0);

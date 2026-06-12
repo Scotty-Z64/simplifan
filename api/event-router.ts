@@ -1,8 +1,20 @@
 import { z } from "zod";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware";
-import { getDb } from "./queries/connection";
+import { getDb, getPool } from "./queries/connection";
 import { events, eventItems } from "@db/schema";
+
+function query(sql: string, params?: any[]) {
+  const db = getPool();
+  const stmt = db.prepare(sql);
+  return params ? stmt.all(...params) : stmt.all();
+}
+
+function queryOne(sql: string, params?: any[]) {
+  const db = getPool();
+  const stmt = db.prepare(sql);
+  return params ? stmt.get(...params) : stmt.get();
+}
 
 export const eventRouter = createRouter({
   list: publicQuery
@@ -12,27 +24,26 @@ export const eventRouter = createRouter({
       limit: z.number().min(1).max(100).default(50),
     }).optional())
     .query(async ({ input }) => {
-      const db = getDb();
-      const where = [];
-      if (input?.clientId) where.push(eq(events.clientId, input.clientId));
-      if (input?.status) where.push(eq(events.status, input.status as any));
+      const conditions: string[] = [];
+      const params: any[] = [];
 
-      return db.query.events.findMany({
-        where: where.length > 0 ? and(...where) : undefined,
-        limit: input?.limit ?? 50,
-        orderBy: [desc(events.createdAt)],
-        with: { items: { with: { vendor: true } }, client: true },
-      });
+      if (input?.clientId) { conditions.push("clientId = ?"); params.push(input.clientId); }
+      if (input?.status) { conditions.push("status = ?"); params.push(input.status); }
+
+      const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+      const limit = input?.limit ?? 50;
+
+      return query(`SELECT * FROM events ${where} ORDER BY id DESC LIMIT ?`, [...params, limit]);
     }),
 
   byId: publicQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
-      const db = getDb();
-      return db.query.events.findFirst({
-        where: eq(events.id, input.id),
-        with: { items: { with: { vendor: true } }, client: true, quotes: true },
-      });
+      const event = queryOne("SELECT * FROM events WHERE id = ?", [input.id]);
+      if (!event) return null;
+
+      const items = query("SELECT * FROM event_items WHERE eventId = ?", [input.id]);
+      return { ...event, items };
     }),
 
   create: publicQuery

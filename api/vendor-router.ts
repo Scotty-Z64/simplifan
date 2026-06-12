@@ -1,8 +1,21 @@
 import { z } from "zod";
 import { eq, and, like, desc } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware";
-import { getDb } from "./queries/connection";
+import { getDb, getPool } from "./queries/connection";
 import { vendors, vendorServices, vendorImages, reviews } from "@db/schema";
+
+// Helper to run raw SQL queries
+function query(sql: string, params?: any[]) {
+  const db = getPool();
+  const stmt = db.prepare(sql);
+  return params ? stmt.all(...params) : stmt.all();
+}
+
+function queryOne(sql: string, params?: any[]) {
+  const db = getPool();
+  const stmt = db.prepare(sql);
+  return params ? stmt.get(...params) : stmt.get();
+}
 
 export const vendorRouter = createRouter({
   list: publicQuery
@@ -16,86 +29,58 @@ export const vendorRouter = createRouter({
       offset: z.number().min(0).default(0),
     }).optional())
     .query(async ({ input }) => {
-      const db = getDb();
-      const conditions = [];
-      
-      if (input?.category) conditions.push(eq(vendors.category, input.category));
-      if (input?.province) conditions.push(eq(vendors.province, input.province));
-      if (input?.tier) conditions.push(eq(vendors.tier, input.tier));
-      if (input?.featured) conditions.push(eq(vendors.featured, 1));
-      if (input?.search) conditions.push(like(vendors.businessName, `%${input.search}%`));
+      const conditions: string[] = ["isActive = 1"];
+      const params: any[] = [];
 
-      // Select specific columns to avoid SQLite quoting issues with timestamps
-      const result = await db.select({
-        id: vendors.id,
-        businessName: vendors.businessName,
-        ownerName: vendors.ownerName,
-        email: vendors.email,
-        phone: vendors.phone,
-        category: vendors.category,
-        subcategory: vendors.subcategory,
-        bio: vendors.bio,
-        province: vendors.province,
-        city: vendors.city,
-        address: vendors.address,
-        priceRange: vendors.priceRange,
-        yearsInBusiness: vendors.yearsInBusiness,
-        avatar: vendors.avatar,
-        logoUrl: vendors.logoUrl,
-        rating: vendors.rating,
-        jobs: vendors.jobs,
-        verified: vendors.verified,
-        featured: vendors.featured,
-        tier: vendors.tier,
-        subscriptionStatus: vendors.subscriptionStatus,
-        isActive: vendors.isActive,
-      }).from(vendors)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .limit(input?.limit ?? 20)
-        .offset(input?.offset ?? 0)
-        .orderBy(desc(vendors.featured), desc(vendors.rating));
+      if (input?.category) { conditions.push("category = ?"); params.push(input.category); }
+      if (input?.province) { conditions.push("province = ?"); params.push(input.province); }
+      if (input?.tier) { conditions.push("tier = ?"); params.push(input.tier); }
+      if (input?.featured) { conditions.push("featured = 1"); }
+      if (input?.search) { conditions.push("businessName LIKE ?"); params.push(`%${input.search}%`); }
 
-      // Fetch services and images separately
-      const vendorIds = result.map(v => v.id);
+      const where = conditions.join(" AND ");
+      const limit = input?.limit ?? 20;
+      const offset = input?.offset ?? 0;
+
+      // Fetch vendors
+      const result = query(
+        `SELECT * FROM vendors WHERE ${where} ORDER BY featured DESC, rating DESC LIMIT ? OFFSET ?`,
+        [...params, limit, offset]
+      ) as any[];
+
+      // Fetch services and images for these vendors
+      const vendorIds = result.map((v: any) => v.id);
       let services: any[] = [];
       let images: any[] = [];
-      
+
       if (vendorIds.length > 0) {
-        services = await db.select().from(vendorServices)
-          .where(vendorIds.length === 1 
-            ? eq(vendorServices.vendorId, vendorIds[0])
-            : undefined);
-        images = await db.select().from(vendorImages)
-          .where(vendorIds.length === 1
-            ? eq(vendorImages.vendorId, vendorIds[0])
-            : undefined);
+        const placeholders = vendorIds.map(() => "?").join(",");
+        services = query(
+          `SELECT id, vendorId, name, description, price, category FROM vendor_services WHERE vendorId IN (${placeholders})`,
+          vendorIds
+        ) as any[];
+        images = query(
+          `SELECT id, vendorId, url, caption FROM vendor_images WHERE vendorId IN (${placeholders})`,
+          vendorIds
+        ) as any[];
       }
 
-      // Merge
       return result.map(v => ({
         ...v,
-        services: services.filter(s => s.vendorId === v.id),
-        images: images.filter(i => i.vendorId === v.id),
+        services: services.filter((s: any) => s.vendorId === v.id),
+        images: images.filter((i: any) => i.vendorId === v.id),
       }));
     }),
 
   byId: publicQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
-      const db = getDb();
-      const [vendor] = await db.select().from(vendors)
-        .where(eq(vendors.id, input.id))
-        .limit(1);
+      const vendor = queryOne("SELECT * FROM vendors WHERE id = ?", [input.id]) as any;
       if (!vendor) return null;
 
-      const services = await db.select().from(vendorServices)
-        .where(eq(vendorServices.vendorId, input.id));
-      const imgs = await db.select().from(vendorImages)
-        .where(eq(vendorImages.vendorId, input.id));
-      const vendorReviews = await db.select().from(reviews)
-        .where(eq(reviews.vendorId, input.id))
-        .orderBy(desc(reviews.createdAt))
-        .limit(20);
+      const services = query("SELECT id, vendorId, name, description, price, category FROM vendor_services WHERE vendorId = ?", [input.id]) as any[];
+      const imgs = query("SELECT id, vendorId, url, caption FROM vendor_images WHERE vendorId = ?", [input.id]) as any[];
+      const vendorReviews = query("SELECT * FROM reviews WHERE vendorId = ? ORDER BY id DESC LIMIT 20", [input.id]) as any[];
 
       return { ...vendor, services, images: imgs, reviews: vendorReviews };
     }),
@@ -172,34 +157,26 @@ export const vendorRouter = createRouter({
     }),
 
   categories: publicQuery.query(async () => {
-    const db = getDb();
-    const result = await db.selectDistinct({ category: vendors.category }).from(vendors).where(eq(vendors.isActive, 1));
-    return result.map(r => r.category).filter(Boolean);
+    const result = query("SELECT DISTINCT category FROM vendors WHERE isActive = 1") as any[];
+    return result.map((r: any) => r.category).filter(Boolean);
   }),
 
   provinces: publicQuery.query(async () => {
-    const db = getDb();
-    const result = await db.selectDistinct({ province: vendors.province }).from(vendors).where(eq(vendors.isActive, 1));
-    return result.map(r => r.province).filter(Boolean);
+    const result = query("SELECT DISTINCT province FROM vendors WHERE isActive = 1") as any[];
+    return result.map((r: any) => r.province).filter(Boolean);
   }),
 
   stats: publicQuery
     .input(z.object({ vendorId: z.number() }))
     .query(async ({ input }) => {
-      const db = getDb();
-      const [vendor] = await db.select().from(vendors)
-        .where(eq(vendors.id, input.vendorId))
-        .limit(1);
+      const vendor = queryOne("SELECT * FROM vendors WHERE id = ?", [input.vendorId]) as any;
       if (!vendor) return null;
 
-      const services = await db.select().from(vendorServices)
-        .where(eq(vendorServices.vendorId, input.vendorId));
+      const services = query("SELECT id, vendorId, name, description, price, category FROM vendor_services WHERE vendorId = ?", [input.vendorId]) as any[];
+      const reviewData = query("SELECT * FROM reviews WHERE vendorId = ?", [input.vendorId]) as any[];
 
-      const reviewData = await db.select().from(reviews)
-        .where(eq(reviews.vendorId, input.vendorId));
-
-      const avgRating = reviewData.length > 0 
-        ? reviewData.reduce((sum, r) => sum + r.rating, 0) / reviewData.length 
+      const avgRating = reviewData.length > 0
+        ? reviewData.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / reviewData.length
         : 0;
 
       return {

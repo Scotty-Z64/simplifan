@@ -1,8 +1,20 @@
 import { z } from "zod";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware";
-import { getDb } from "./queries/connection";
+import { getDb, getPool } from "./queries/connection";
 import { notifications } from "@db/schema";
+
+function query(sqlStr: string, params?: any[]) {
+  const db = getPool();
+  const stmt = db.prepare(sqlStr);
+  return params ? stmt.all(...params) : stmt.all();
+}
+
+function queryOne(sqlStr: string, params?: any[]) {
+  const db = getPool();
+  const stmt = db.prepare(sqlStr);
+  return params ? stmt.get(...params) : stmt.get();
+}
 
 export const notificationRouter = createRouter({
   list: publicQuery
@@ -13,18 +25,12 @@ export const notificationRouter = createRouter({
       limit: z.number().min(1).max(100).default(50),
     }))
     .query(async ({ input }) => {
-      const db = getDb();
-      const where = [
-        eq(notifications.userId, input.userId),
-        eq(notifications.userType, input.userType),
-      ];
-      if (input.unreadOnly) where.push(eq(notifications.read, false));
+      const conditions = ["userId = ?", "userType = ?"];
+      const params: any[] = [input.userId, input.userType];
+      if (input.unreadOnly) { conditions.push("read = 0"); }
 
-      return db.query.notifications.findMany({
-        where: and(...where),
-        limit: input.limit,
-        orderBy: [desc(notifications.createdAt)],
-      });
+      const where = conditions.join(" AND ");
+      return query(`SELECT * FROM notifications WHERE ${where} ORDER BY id DESC LIMIT ?`, [...params, input.limit]);
     }),
 
   create: publicQuery
@@ -71,14 +77,10 @@ export const notificationRouter = createRouter({
       userType: z.enum(["client", "vendor"]),
     }))
     .query(async ({ input }) => {
-      const db = getDb();
-      const result = await db.select({
-        count: sql<number>`COUNT(*)`,
-      }).from(notifications).where(and(
-        eq(notifications.userId, input.userId),
-        eq(notifications.userType, input.userType),
-        eq(notifications.read, false)
-      ));
-      return Number(result[0]?.count ?? 0);
+      const result = queryOne(
+        "SELECT COUNT(*) as count FROM notifications WHERE userId = ? AND userType = ? AND read = 0",
+        [input.userId, input.userType]
+      ) as any;
+      return Number(result?.count ?? 0);
     }),
 });

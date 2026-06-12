@@ -1,17 +1,20 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware";
-import { getDb } from "./queries/connection";
+import { getDb, getPool } from "./queries/connection";
 import { clients } from "@db/schema";
+
+function queryOne(sql: string, params?: any[]) {
+  const db = getPool();
+  const stmt = db.prepare(sql);
+  return params ? stmt.get(...params) : stmt.get();
+}
 
 export const clientRouter = createRouter({
   byPhone: publicQuery
     .input(z.object({ phone: z.string() }))
     .query(async ({ input }) => {
-      const db = getDb();
-      return db.query.clients.findFirst({
-        where: eq(clients.phone, input.phone),
-      });
+      return queryOne("SELECT * FROM clients WHERE phone = ?", [input.phone]);
     }),
 
   create: publicQuery
@@ -23,9 +26,7 @@ export const clientRouter = createRouter({
     }))
     .mutation(async ({ input }) => {
       const db = getDb();
-      const existing = await db.query.clients.findFirst({
-        where: eq(clients.phone, input.phone),
-      });
+      const existing = queryOne("SELECT * FROM clients WHERE phone = ?", [input.phone]);
       if (existing) return existing;
 
       const [result] = await db.insert(clients).values({
@@ -51,9 +52,7 @@ export const clientRouter = createRouter({
     }),
 
   list: publicQuery.query(async () => {
-    const db = getDb();
-    return db.query.clients.findMany({
-      orderBy: (clients, { desc }) => [desc(clients.createdAt)],
-    });
+    const db = getPool();
+    return db.prepare("SELECT * FROM clients ORDER BY id DESC").all();
   }),
 });
