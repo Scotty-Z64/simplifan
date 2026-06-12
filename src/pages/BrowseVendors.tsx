@@ -3,8 +3,28 @@ import { useNavigate } from 'react-router-dom';
 import { trpc } from '@/providers/trpc';
 import {
   Search, Star, Phone, ChevronLeft, SlidersHorizontal,
-  X, ArrowRight, CheckCircle, MessageCircle
+  X, ArrowRight, CheckCircle, MessageCircle, Loader2, MapPin
 } from 'lucide-react';
+
+// Category-to-image mapping for rich visual cards
+const CATEGORY_IMAGES: Record<string, string> = {
+  'Catering': '/images/vendor-catering.jpg',
+  'Music / DJ': '/images/vendor-dj.jpg',
+  'Photography': '/images/vendor-photography.jpg',
+  'Decor': '/images/vendor-decor.jpg',
+  'Venue': '/images/vendor-venue.jpg',
+  'Cake': '/images/vendor-cake.jpg',
+  'Transport': '/images/vendor-transport.jpg',
+  'Security': '/images/vendor-security.jpg',
+  'Tent & Equipment': '/images/vendor-tent.jpg',
+  'Drinks / Bar': '/images/vendor-bar.jpg',
+  'Hair & Makeup': '/images/vendor-makeup.jpg',
+};
+
+function getVendorImage(vendor: any) {
+  if (vendor.images && vendor.images.length > 0) return vendor.images[0].url;
+  return CATEGORY_IMAGES[vendor.category] || '/images/vendor-catering.jpg';
+}
 
 export function BrowseVendors() {
   const navigate = useNavigate();
@@ -43,12 +63,33 @@ export function BrowseVendors() {
 
   const categoryList = ['All', ...(categories ?? [])];
 
+  // ─── Loading Skeleton ───
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F1F5F9' }}>
-        <div className="text-center">
-          <div className="w-12 h-12 border-3 border-teal-200 border-t-teal-500 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-sm" style={{ color: '#94A3B8' }}>Loading vendors...</p>
+      <div className="min-h-screen" style={{ background: '#F1F5F9' }}>
+        <div className="sticky top-0 z-30 px-4 py-3" style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+          <div className="h-5 w-32 rounded-lg animate-pulse" style={{ background: '#E2E8F0' }} />
+        </div>
+        <div className="max-w-3xl mx-auto p-4 space-y-4">
+          {/* Search skeleton */}
+          <div className="h-12 rounded-2xl animate-pulse" style={{ background: '#E2E8F0' }} />
+          {/* Category chips skeleton */}
+          <div className="flex gap-2">
+            {[1,2,3,4,5,6].map(i => <div key={i} className="h-8 w-20 rounded-xl animate-pulse" style={{ background: '#E2E8F0' }} />)}
+          </div>
+          {/* Vendor card skeletons */}
+          {[1,2,3,4,5].map(i => (
+            <div key={i} className="rounded-2xl p-5" style={{ background: 'white' }}>
+              <div className="flex gap-4">
+                <div className="w-14 h-14 rounded-2xl animate-pulse flex-shrink-0" style={{ background: '#E2E8F0' }} />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-40 rounded-lg animate-pulse" style={{ background: '#E2E8F0' }} />
+                  <div className="h-3 w-24 rounded-lg animate-pulse" style={{ background: '#E2E8F0' }} />
+                  <div className="h-3 w-32 rounded-lg animate-pulse" style={{ background: '#E2E8F0' }} />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -120,34 +161,56 @@ export function BrowseVendors() {
         </p>
 
         {/* Vendor Cards */}
-        <div className="space-y-3">
+        <div className="space-y-4">
           {filteredVendors.map(vendor => (
             <div key={vendor.id} onClick={() => setSelectedVendor(vendor.id)}
-              className="rounded-2xl p-5 cursor-pointer transition-all hover:-translate-y-0.5"
-              style={{ background: 'white', boxShadow: '0 2px 12px -4px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.04)' }}>
-              <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold text-white flex-shrink-0"
-                  style={{ background: vendor.verified
-                    ? 'linear-gradient(135deg, #2BBCA8, #1E9B8A)'
-                    : 'linear-gradient(135deg, #94A3B8, #64748B)' }}>
-                  {vendor.avatar || vendor.businessName.charAt(0)}
+              className="rounded-2xl overflow-hidden cursor-pointer transition-all hover:-translate-y-1 hover:shadow-xl"
+              style={{ background: 'white', boxShadow: '0 4px 20px -5px rgba(0,0,0,0.1)', border: '1px solid rgba(0,0,0,0.04)' }}>
+              {/* Category Image Banner */}
+              <div className="relative h-32 overflow-hidden">
+                <img src={getVendorImage(vendor)} alt={vendor.category} className="w-full h-full object-cover" />
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.1) 60%, transparent 100%)' }} />
+                {/* Badges on image */}
+                <div className="absolute top-3 right-3 flex gap-1.5">
+                  {vendor.featured && (
+                    <span className="px-2.5 py-1 rounded-full text-[9px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #F59E0B, #D97706)' }}>Featured</span>
+                  )}
+                  <span className="px-2.5 py-1 rounded-full text-[9px] font-bold text-white" style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}>{vendor.category}</span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-base font-bold truncate" style={{ color: '#1a1a2e' }}>{vendor.businessName}</h3>
-                    {vendor.verified && <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#2BBCA8' }} />}
-                    {vendor.featured && <span className="flex-shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold" style={{ background: '#FFFBEB', color: '#D97706' }}>Featured</span>}
+                {/* Bottom info on image */}
+                <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+                      style={{ background: vendor.verified ? 'linear-gradient(135deg, #2BBCA8, #1E9B8A)' : 'linear-gradient(135deg, #94A3B8, #64748B)', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+                      {vendor.avatar || vendor.businessName.charAt(0)}
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">{vendor.businessName}</h3>
+                      <p className="text-[10px] text-white/70">{vendor.city ?? vendor.province}</p>
+                    </div>
                   </div>
-                  <p className="text-xs mb-2" style={{ color: '#64748B' }}>{vendor.category} &middot; {vendor.city ?? vendor.province}</p>
+                  {vendor.verified && <CheckCircle className="w-5 h-5 text-white flex-shrink-0" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))' }} />}
+                </div>
+              </div>
+              {/* Card Body */}
+              <div className="p-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: '#F59E0B' }}>
+                    <span className="flex items-center gap-1 text-xs font-bold" style={{ color: '#F59E0B' }}>
                       <Star className="w-3.5 h-3.5 fill-current" /> {vendor.rating}
                     </span>
                     <span className="text-xs" style={{ color: '#94A3B8' }}>{vendor.jobs} jobs</span>
-                    {vendor.priceRange && <span className="text-xs font-semibold" style={{ color: '#2BBCA8' }}>{vendor.priceRange}</span>}
+                    {vendor.yearsInBusiness && (
+                      <span className="text-xs" style={{ color: '#94A3B8' }}>{vendor.yearsInBusiness} yrs exp</span>
+                    )}
                   </div>
+                  {vendor.priceRange && (
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-lg" style={{ background: '#F0FDFA', color: '#2BBCA8' }}>{vendor.priceRange}</span>
+                  )}
                 </div>
-                <ArrowRight className="w-5 h-5 flex-shrink-0 mt-4" style={{ color: '#CBD5E1' }} />
+                {vendor.bio && (
+                  <p className="text-xs mt-2 line-clamp-2" style={{ color: '#94A3B8' }}>{vendor.bio}</p>
+                )}
               </div>
             </div>
           ))}
@@ -167,25 +230,29 @@ export function BrowseVendors() {
           <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.4)' }} />
           <div className="relative w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[85vh] overflow-y-auto"
             style={{ background: 'white' }} onClick={e => e.stopPropagation()}>
-            {/* Header */}
-            <div className="relative h-40 overflow-hidden rounded-t-2xl sm:rounded-t-2xl">
-              <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)' }} />
+            {/* Header with category image */}
+            <div className="relative h-48 overflow-hidden rounded-t-2xl sm:rounded-t-2xl">
+              <img src={getVendorImage(activeVendor)} alt={activeVendor.category} className="w-full h-full object-cover" />
+              <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.1) 100%)' }} />
               <div className="absolute bottom-0 left-0 right-0 p-5">
                 <div className="flex items-end gap-4">
                   <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold text-white flex-shrink-0"
-                    style={{ background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
+                    style={{ background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)' }}>
                     {activeVendor.avatar || activeVendor.businessName.charAt(0)}
                   </div>
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-bold text-white">{activeVendor.businessName}</h2>
-                      {activeVendor.verified && <CheckCircle className="w-5 h-5 text-white" />}
+                      <h2 className="text-lg font-bold text-white truncate">{activeVendor.businessName}</h2>
+                      {activeVendor.verified && <CheckCircle className="w-5 h-5 text-white flex-shrink-0" />}
                     </div>
-                    <p className="text-xs text-white/80">{activeVendor.category} &middot; {activeVendor.city ?? activeVendor.province}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <MapPin className="w-3 h-3 text-white/60" />
+                      <p className="text-xs text-white/80">{activeVendor.category} &middot; {activeVendor.city ?? activeVendor.province}</p>
+                    </div>
                   </div>
                 </div>
               </div>
-              <button onClick={() => setSelectedVendor(null)} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
+              <button onClick={() => setSelectedVendor(null)} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)' }}>
                 <X className="w-4 h-4 text-white" />
               </button>
             </div>
