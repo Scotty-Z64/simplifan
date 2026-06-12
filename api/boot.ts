@@ -128,4 +128,4 @@ app.use("*", async (c, next) => {
 serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, () => {
   console.log(`[BOOT] Running on port ${port}`);
 });
-// deploy trigger 1781302166
+// WhatsApp bot + webhook registered above 1781302166
