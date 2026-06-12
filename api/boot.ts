@@ -6,7 +6,16 @@ import { Paths } from "@contracts/constants";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
-// ─── Health check (no dependencies) ───
+// ─── CORS headers for all responses ───
+app.use("*", async (c, next) => {
+  c.header("Access-Control-Allow-Origin", "*");
+  c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  c.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (c.req.method === "OPTIONS") return c.text("", 204);
+  await next();
+});
+
+// ─── Health check (NO dependencies) ───
 app.get("/api/trpc/ping", (c) => c.json({ ok: true, ts: Date.now() }));
 app.get("/health", (c) => c.json({ status: "ok", time: new Date().toISOString() }));
 app.get("/", (c) => c.json({ message: "SimpliPlan API is running" }));
@@ -43,7 +52,7 @@ try {
   app.use("/api/trpc/*", (c) => {
     return c.json({ 
       error: "API temporarily unavailable", 
-      details: process.env.DEBUG ? (e as Error).message : undefined 
+      message: (e as Error).message
     }, 503);
   });
 }
@@ -66,10 +75,10 @@ if (isProduction) {
     const port = parseInt(process.env.PORT || "3000");
     serve({ fetch: app.fetch, port }, () => {
       console.log(`[BOOT] Server running on port ${port}`);
+      console.log(`[BOOT] Health check: http://localhost:${port}/api/trpc/ping`);
     });
   } catch (e) {
     console.error("[BOOT] Failed to start server:", (e as Error).message);
-    // Exit gracefully so Railway knows it failed
     process.exit(1);
   }
 }
