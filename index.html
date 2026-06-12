@@ -45,8 +45,18 @@
           regs.forEach(function(r) { r.unregister(); });
         });
       }
-      // Timeout: if React doesn't mount in 45s, show error (Railway has slow bandwidth)
+      // Hide loading spinner once React mounts into #root
+      var hideCheck = setInterval(function() {
+        var root = document.getElementById('root');
+        if (root && root.children.length > 0) {
+          var loading = document.getElementById('loading');
+          if (loading) loading.style.display = 'none';
+          clearInterval(hideCheck);
+        }
+      }, 100);
+      // Timeout: if React doesn't mount in 45s, show error
       setTimeout(function() {
+        clearInterval(hideCheck);
         var root = document.getElementById('root');
         if (!root || root.children.length === 0) {
           document.getElementById('loading-error').style.display = 'block';
