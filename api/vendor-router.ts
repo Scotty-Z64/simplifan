@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { eq, and, like, sql, desc } from "drizzle-orm";
+import { eq, and, like, desc } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware";
-import { getDb, getPool } from "./queries/connection";
+import { getDb } from "./queries/connection";
 import { vendors, vendorServices, vendorImages, reviews } from "@db/schema";
 
 export const vendorRouter = createRouter({
@@ -16,55 +16,42 @@ export const vendorRouter = createRouter({
       offset: z.number().min(0).default(0),
     }).optional())
     .query(async ({ input }) => {
-      // Use raw SQL to bypass Drizzle prepared statement issue
-      const pool = getPool();
+      const db = getDb();
+      const conditions = [];
       
-      let sql = "SELECT * FROM vendors";
-      const conditions: string[] = [];
-      if (input?.category) conditions.push(`category = '${input.category}'`);
-      if (input?.province) conditions.push(`province = '${input.province}'`);
-      if (input?.tier) conditions.push(`tier = '${input.tier}'`);
-      if (input?.featured) conditions.push("featured = 1");
-      if (input?.search) conditions.push(`businessName LIKE '%${input.search}%'`);
-      
-      if (conditions.length > 0) sql += " WHERE " + conditions.join(" AND ");
-      sql += " ORDER BY featured DESC, rating DESC";
-      sql += ` LIMIT ${input?.limit ?? 20}`;
-      if (input?.offset) sql += ` OFFSET ${input.offset}`;
-      
-      console.log("[VENDOR] Raw SQL:", sql.substring(0, 100));
-      
-      let result;
-      try {
-        if (pool) {
-          const [rows] = await pool.execute(sql);
-          result = rows;
-        } else {
-          result = await db.select().from(vendors).limit(input?.limit ?? 20);
-        }
-        console.log("[VENDOR] Success, rows:", result.length);
-      } catch (e: any) {
-        console.error("[VENDOR] FAILED:", e.message);
-        throw e;
-      }
+      if (input?.category) conditions.push(eq(vendors.category, input.category));
+      if (input?.province) conditions.push(eq(vendors.province, input.province));
+      if (input?.tier) conditions.push(eq(vendors.tier, input.tier));
+      if (input?.featured) conditions.push(eq(vendors.featured, 1));
+      if (input?.search) conditions.push(like(vendors.businessName, `%${input.search}%`));
 
-      // Fetch services and images
-      const vendorIds = result.map((v: any) => v.id);
+      const result = await db.select().from(vendors)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .limit(input?.limit ?? 20)
+        .offset(input?.offset ?? 0)
+        .orderBy(desc(vendors.featured), desc(vendors.rating));
+
+      // Fetch services and images separately
+      const vendorIds = result.map(v => v.id);
       let services: any[] = [];
       let images: any[] = [];
       
-      if (vendorIds.length > 0 && pool) {
-        const idList = vendorIds.join(',');
-        const [svcRows] = await pool.execute(`SELECT * FROM vendor_services WHERE vendorId IN (${idList})`);
-        const [imgRows] = await pool.execute(`SELECT * FROM vendor_images WHERE vendorId IN (${idList})`);
-        services = svcRows as any[];
-        images = imgRows as any[];
+      if (vendorIds.length > 0) {
+        services = await db.select().from(vendorServices)
+          .where(vendorIds.length === 1 
+            ? eq(vendorServices.vendorId, vendorIds[0])
+            : undefined);
+        images = await db.select().from(vendorImages)
+          .where(vendorIds.length === 1
+            ? eq(vendorImages.vendorId, vendorIds[0])
+            : undefined);
       }
 
-      return result.map((v: any) => ({
+      // Merge
+      return result.map(v => ({
         ...v,
-        services: services.filter((s: any) => s.vendorId === v.id),
-        images: images.filter((i: any) => i.vendorId === v.id),
+        services: services.filter(s => s.vendorId === v.id),
+        images: images.filter(i => i.vendorId === v.id),
       }));
     }),
 
@@ -115,13 +102,13 @@ export const vendorRouter = createRouter({
       const { services, ...vendorData } = input;
 
       const avatar = vendorData.businessName.charAt(0).toUpperCase();
-      const [result] = await db.insert(vendors).values({
+      const result = await db.insert(vendors).values({
         ...vendorData,
         avatar,
-        subscriptionEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        subscriptionEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
       });
 
-      const vendorId = Number(result.insertId);
+      const vendorId = Number(result.lastInsertRowid);
 
       if (services && services.length > 0) {
         await db.insert(vendorServices).values(
@@ -162,13 +149,13 @@ export const vendorRouter = createRouter({
 
   categories: publicQuery.query(async () => {
     const db = getDb();
-    const result = await db.selectDistinct({ category: vendors.category }).from(vendors).where(eq(vendors.isActive, true));
+    const result = await db.selectDistinct({ category: vendors.category }).from(vendors).where(eq(vendors.isActive, 1));
     return result.map(r => r.category).filter(Boolean);
   }),
 
   provinces: publicQuery.query(async () => {
     const db = getDb();
-    const result = await db.selectDistinct({ province: vendors.province }).from(vendors).where(eq(vendors.isActive, true));
+    const result = await db.selectDistinct({ province: vendors.province }).from(vendors).where(eq(vendors.isActive, 1));
     return result.map(r => r.province).filter(Boolean);
   }),
 
@@ -184,16 +171,18 @@ export const vendorRouter = createRouter({
       const services = await db.select().from(vendorServices)
         .where(eq(vendorServices.vendorId, input.vendorId));
 
-      const reviewData = await db.select({
-        avgRating: sql<number>`COALESCE(AVG(${reviews.rating}), 0)`,
-        count: sql<number>`COUNT(*)`,
-      }).from(reviews).where(eq(reviews.vendorId, input.vendorId));
+      const reviewData = await db.select().from(reviews)
+        .where(eq(reviews.vendorId, input.vendorId));
+
+      const avgRating = reviewData.length > 0 
+        ? reviewData.reduce((sum, r) => sum + r.rating, 0) / reviewData.length 
+        : 0;
 
       return {
         ...vendor,
         services,
-        avgRating: Number(reviewData[0]?.avgRating ?? 0),
-        reviewCount: Number(reviewData[0]?.count ?? 0),
+        avgRating: avgRating.toFixed(1),
+        reviewCount: reviewData.length,
       };
     }),
 });
