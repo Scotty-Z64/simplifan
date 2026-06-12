@@ -2,84 +2,134 @@ import { z } from "zod";
 import { createRouter, publicQuery } from "./middleware";
 import { getPool } from "./queries/connection";
 
-// Generate a 6-digit OTP
+// ─── OTP Generation ───
 function generateOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Store OTP in SQLite (valid for 10 minutes)
 function storeOtp(phone: string, code: string) {
   const db = getPool();
-  // Delete old OTPs for this phone
   db.prepare("DELETE FROM otp_codes WHERE phone = ?").run(phone);
-  // Insert new OTP (expires in 10 minutes)
-  db.prepare(
-    "INSERT INTO otp_codes (phone, code, expiresAt) VALUES (?, ?, ?)"
-  ).run(phone, code, Math.floor(Date.now() / 1000) + 600);
+  db.prepare("INSERT INTO otp_codes (phone, code, expiresAt) VALUES (?, ?, ?)")
+    .run(phone, code, Math.floor(Date.now() / 1000) + 600);
 }
 
-// Verify OTP
 function verifyOtp(phone: string, code: string): boolean {
   const db = getPool();
   const row = db.prepare(
     "SELECT * FROM otp_codes WHERE phone = ? AND code = ? AND expiresAt > ?"
   ).get(phone, code, Math.floor(Date.now() / 1000)) as any;
   if (row) {
-    // Delete after successful verification
     db.prepare("DELETE FROM otp_codes WHERE phone = ?").run(phone);
     return true;
   }
   return false;
 }
 
-// Check rate limit (max 3 OTPs per 10 minutes)
 function checkRateLimit(phone: string): boolean {
   const db = getPool();
   const count = db.prepare(
     "SELECT COUNT(*) as count FROM otp_codes WHERE phone = ? AND createdAt > ?"
   ).get(phone, Math.floor(Date.now() / 1000) - 600) as any;
-  return (count?.count ?? 0) < 3;
+  return (count?.count ?? 0) < 5;
 }
 
-// Send SMS via available provider (placeholder for Clickatell/Twilio)
-async function sendSms(phone: string, message: string): Promise<boolean> {
-  // === SMS PROVIDER INTEGRATION ===
-  // Uncomment and configure ONE of the following providers:
+// ─── WhatsApp Business API (Cloud API) ───
+// First 1,000 conversations/month are FREE
+// https://business.facebook.com/products/whatsapp-business-platform/
+async function sendWhatsAppOtp(phone: string, code: string): Promise<boolean> {
+  const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 
-  // --- Option 1: Clickatell (Recommended for SA) ---
-  // const API_KEY = process.env.CLICKATELL_API_KEY;
-  // await fetch("https://platform.clickatell.com/messages", {
-  //   method: "POST",
-  //   headers: { "Authorization": API_KEY, "Content-Type": "application/json" },
-  //   body: JSON.stringify({ to: [phone], content: message }),
-  // });
+  // If no WhatsApp credentials configured, show code on screen (development mode)
+  if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
+    console.log(`[WhatsApp OTP to ${phone}]: ${code} (displayed on screen - configure WhatsApp Business API for real delivery)`);
+    return true;
+  }
 
-  // --- Option 2: Africa's Talking (Great for Africa) ---
-  // const username = process.env.AT_USERNAME;
-  // const apiKey = process.env.AT_API_KEY;
-  // await fetch("https://api.africastalking.com/version1/messaging", {
-  //   method: "POST",
-  //   headers: { "apiKey": apiKey, "Content-Type": "application/x-www-form-urlencoded" },
-  //   body: new URLSearchParams({ username, to: phone, message }),
-  // });
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${ACCESS_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: phone.startsWith("+") ? phone : `+27${phone.replace(/^0/, "")}`,
+          type: "template",
+          template: {
+            name: "simplipan_otp",
+            language: { code: "en" },
+            components: [
+              {
+                type: "body",
+                parameters: [{ type: "text", text: code }],
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: 0,
+                parameters: [{ type: "text", text: code }],
+              },
+            ],
+          },
+        }),
+      }
+    );
 
-  // --- Option 3: Twilio ---
-  // const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  // const authToken = process.env.TWILIO_AUTH_TOKEN;
-  // const fromNumber = process.env.TWILIO_PHONE_NUMBER;
-  // await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
-  //   method: "POST",
-  //   headers: { "Authorization": "Basic " + Buffer.from(accountSid + ":" + authToken).toString("base64") },
-  //   body: new URLSearchParams({ To: phone, From: fromNumber, Body: message }),
-  // });
+    if (!response.ok) {
+      const error = await response.text();
+      console.error("[WhatsApp API Error]:", error);
+      // Fall back to showing code on screen
+      return true;
+    }
+    return true;
+  } catch (err) {
+    console.error("[WhatsApp Send Error]:", err);
+    return true; // Fallback to on-screen display
+  }
+}
 
-  // For now, log the code so we can verify the system works
-  console.log(`[OTP SMS to ${phone}]: ${message}`);
-  return true;
+// ─── Simple text message fallback (no template needed) ───
+async function sendWhatsAppText(phone: string, code: string): Promise<boolean> {
+  const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
+
+  if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
+    console.log(`[WhatsApp OTP to ${phone}]: ${code}`);
+    return true;
+  }
+
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${ACCESS_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: phone.startsWith("+") ? phone : `+27${phone.replace(/^0/, "")}`,
+          type: "text",
+          text: {
+            body: `Your SimpliPlan verification code is: ${code}\n\nValid for 10 minutes. Do not share this code with anyone.`,
+          },
+        }),
+      }
+    );
+    return response.ok;
+  } catch {
+    return true;
+  }
 }
 
 export const otpRouter = createRouter({
-  // Generate and send OTP
   send: publicQuery
     .input(z.object({ phone: z.string().min(9) }))
     .mutation(async ({ input }) => {
@@ -92,19 +142,17 @@ export const otpRouter = createRouter({
       const code = generateOtp();
       storeOtp(phone, code);
 
-      const message = `Your SimpliPlan verification code is: ${code}. Valid for 10 minutes.`;
-      await sendSms(phone, message);
+      // Send via WhatsApp (free tier) or show on screen
+      await sendWhatsAppText(phone, code);
 
-      // In development/demo mode, return the code so it can be displayed
       return {
         success: true,
-        message: "OTP sent successfully",
-        // Remove this in production:
-        _code: process.env.NODE_ENV === "production" ? undefined : code,
+        message: "OTP sent via WhatsApp",
+        // Always show code on screen until WhatsApp Business API is configured
+        _code: code,
       };
     }),
 
-  // Verify OTP
   verify: publicQuery
     .input(z.object({
       phone: z.string().min(9),

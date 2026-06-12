@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { trpc } from '@/providers/trpc';
 import {
   LogIn, ArrowRight, Sparkles, User, Lock,
-  Phone, Loader2, Store, CheckCircle
+  Phone, Loader2, Store, CheckCircle, MessageCircle
 } from 'lucide-react';
 
 export function Login() {
@@ -130,7 +130,7 @@ export function Login() {
               <LogIn className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold mb-1" style={{ color: '#1a1a2e', fontFamily: "'Space Grotesk', sans-serif" }}>Sign In</h1>
-            <p className="text-sm" style={{ color: '#64748B' }}>{step === 'phone' ? 'Enter your phone number' : 'Enter the OTP sent to your phone'}</p>
+            <p className="text-sm" style={{ color: '#64748B' }}>{step === 'phone' ? 'Enter your WhatsApp number' : 'Enter the code sent to your WhatsApp'}</p>
           </div>
 
           {error && (
@@ -149,12 +149,12 @@ export function Login() {
                   <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="082 345 6789"
                     className="flex-1 bg-transparent text-sm outline-none" style={{ color: '#1a1a2e' }} />
                 </div>
-                <p className="text-[10px] mt-1" style={{ color: '#94A3B8' }}>We will send a 6-digit verification code</p>
+                <p className="text-[10px] mt-1" style={{ color: '#94A3B8' }}>Your WhatsApp number — we send codes via WhatsApp (free!)</p>
               </div>
               <button onClick={handleSendOtp} disabled={sending}
                 className="w-full py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60"
-                style={{ background: 'linear-gradient(135deg, #2BBCA8, #1E9B8A)', boxShadow: '0 4px 12px -3px rgba(43,188,168,0.3)' }}>
-                {sending ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</> : <><span>Send OTP</span><ArrowRight className="w-4 h-4" /></>}
+                style={{ background: 'linear-gradient(135deg, #25D366, #128C7E)', boxShadow: '0 4px 12px -3px rgba(37,211,102,0.3)' }}>
+                {sending ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</> : <><MessageCircle className="w-4 h-4" /><span>Send Code via WhatsApp</span></>}
               </button>
             </div>
           )}
@@ -178,7 +178,7 @@ export function Login() {
                   <input type="text" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="------" maxLength={6}
                     className="flex-1 bg-transparent text-sm outline-none text-center" style={{ color: '#1a1a2e', letterSpacing: '0.5em' }} />
                 </div>
-                <p className="text-[10px] mt-1" style={{ color: '#94A3B8' }}>Code sent to {phone}. Valid for 10 minutes.</p>
+                <p className="text-[10px] mt-1" style={{ color: '#94A3B8' }}>Code sent to {phone} via WhatsApp. Valid for 10 minutes.</p>
               </div>
               <button onClick={handleVerifyOtp} disabled={verifying || otp.length < 6}
                 className="w-full py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60"
