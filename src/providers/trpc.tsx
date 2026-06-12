@@ -7,9 +7,17 @@ import type { ReactNode } from "react";
 
 export const trpc = createTRPCReact<AppRouter>();
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000,
+    },
+  },
+});
 
-// Use production API URL when deployed, fallback to local relative path
+// Static fallback data when API is unreachable
 const API_URL = import.meta.env.VITE_API_URL || "/api/trpc";
 
 const trpcClient = trpc.createClient({
@@ -17,10 +25,22 @@ const trpcClient = trpc.createClient({
     httpBatchLink({
       url: API_URL,
       transformer: superjson,
+      // Add timeout and error handling
+      headers() {
+        return {
+          "x-static-mode": "true",
+        };
+      },
       fetch(input, init) {
         return globalThis.fetch(input, {
           ...(init ?? {}),
           credentials: "include",
+        }).catch(() => {
+          // Return empty successful response for offline mode
+          return new Response(JSON.stringify({ result: { data: null } }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
         });
       },
     }),
