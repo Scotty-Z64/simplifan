@@ -19,5 +19,5 @@ RUN npm run build
 
 EXPOSE 3000
 
-# Run TypeScript directly with tsx (same as local)
-CMD ["npx", "tsx", "--tsconfig", "tsconfig.json", "api/boot.ts"]
+# Run TypeScript directly with tsx (use full path, not npx)
+CMD ["./node_modules/.bin/tsx", "--tsconfig", "tsconfig.json", "api/boot.ts"]
