@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, and, like, sql, desc } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware";
-import { getDb } from "./queries/connection";
+import { getDb, getPool } from "./queries/connection";
 import { vendors, vendorServices, vendorImages, reviews } from "@db/schema";
 
 export const vendorRouter = createRouter({
@@ -17,8 +17,7 @@ export const vendorRouter = createRouter({
     }).optional())
     .query(async ({ input }) => {
       // Use raw SQL to bypass Drizzle prepared statement issue
-      const db = getDb();
-      const pool = (db as any).$client || (db as any).session?.client;
+      const pool = getPool();
       
       let sql = "SELECT * FROM vendors";
       const conditions: string[] = [];
