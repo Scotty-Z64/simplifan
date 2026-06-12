@@ -16,46 +16,56 @@ export const vendorRouter = createRouter({
       offset: z.number().min(0).default(0),
     }).optional())
     .query(async ({ input }) => {
+      // Use raw SQL to bypass Drizzle prepared statement issue
       const db = getDb();
-      const where = [];
-      if (input?.category) where.push(eq(vendors.category, input.category));
-      if (input?.province) where.push(eq(vendors.province, input.province));
-      if (input?.tier) where.push(eq(vendors.tier, input.tier));
-      if (input?.featured) where.push(eq(vendors.featured, true));
-      if (input?.search) where.push(like(vendors.businessName, `%${input.search}%`));
-
-      console.log("[VENDOR] Executing query...");
+      const pool = (db as any).$client || (db as any).session?.client;
+      
+      let sql = "SELECT * FROM vendors";
+      const conditions: string[] = [];
+      if (input?.category) conditions.push(`category = '${input.category}'`);
+      if (input?.province) conditions.push(`province = '${input.province}'`);
+      if (input?.tier) conditions.push(`tier = '${input.tier}'`);
+      if (input?.featured) conditions.push("featured = 1");
+      if (input?.search) conditions.push(`businessName LIKE '%${input.search}%'`);
+      
+      if (conditions.length > 0) sql += " WHERE " + conditions.join(" AND ");
+      sql += " ORDER BY featured DESC, rating DESC";
+      sql += ` LIMIT ${input?.limit ?? 20}`;
+      if (input?.offset) sql += ` OFFSET ${input.offset}`;
+      
+      console.log("[VENDOR] Raw SQL:", sql.substring(0, 100));
+      
       let result;
       try {
-        result = await db.select().from(vendors)
-          .where(where.length > 0 ? and(...where) : undefined)
-          .limit(input?.limit ?? 20)
-          .offset(input?.offset ?? 0)
-          .orderBy(desc(vendors.featured), desc(vendors.rating));
-        console.log("[VENDOR] Query success, rows:", result.length);
+        if (pool) {
+          const [rows] = await pool.execute(sql);
+          result = rows;
+        } else {
+          result = await db.select().from(vendors).limit(input?.limit ?? 20);
+        }
+        console.log("[VENDOR] Success, rows:", result.length);
       } catch (e: any) {
-        console.error("[VENDOR] Query FAILED:", e.message);
-        console.error("[VENDOR] Full error:", e.stack?.substring(0, 500));
+        console.error("[VENDOR] FAILED:", e.message);
         throw e;
       }
 
-      // Fetch services and images separately
-      const vendorIds = result.map(v => v.id);
+      // Fetch services and images
+      const vendorIds = result.map((v: any) => v.id);
       let services: any[] = [];
       let images: any[] = [];
       
-      if (vendorIds.length > 0) {
-        services = await db.select().from(vendorServices)
-          .where(sql`${vendorServices.vendorId} IN (${vendorIds.join(',')})`);
-        images = await db.select().from(vendorImages)
-          .where(sql`${vendorImages.vendorId} IN (${vendorIds.join(',')})`);
+      if (vendorIds.length > 0 && pool) {
+        const idList = vendorIds.join(',');
+        const [svcRows] = await pool.execute(`SELECT * FROM vendor_services WHERE vendorId IN (${idList})`);
+        const [imgRows] = await pool.execute(`SELECT * FROM vendor_images WHERE vendorId IN (${idList})`);
+        services = svcRows as any[];
+        images = imgRows as any[];
       }
 
-      // Merge
-      return result.map(v => ({
+      return result.map((v: any) => ({
         ...v,
-        services: services.filter(s => s.vendorId === v.id),
-        images: images.filter(i => i.vendorId === v.id),
+        services: services.filter((s: any) => s.vendorId === v.id),
+        images: images.filter((i: any) => i.vendorId === v.id),
       }));
     }),
 
