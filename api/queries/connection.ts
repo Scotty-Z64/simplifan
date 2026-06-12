@@ -8,31 +8,54 @@ const fullSchema = { ...schema, ...relations };
 
 let instance: ReturnType<typeof drizzle<typeof fullSchema>>;
 
+function parseDbUrl(url: string) {
+  // mysql://user:pass@host:port/dbname
+  const match = url.match(/mysql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
+  if (!match) {
+    console.error("[DB] Failed to parse URL");
+    return null;
+  }
+  return {
+    user: match[1],
+    password: match[2],
+    host: match[3],
+    port: parseInt(match[4]),
+    database: match[5],
+  };
+}
+
 export function getDb() {
   if (!instance) {
     const url = env.databaseUrl;
-    console.log("[DB] Connecting... URL length:", url?.length || 0);
-    console.log("[DB] URL prefix:", url?.substring(0, 40) || "EMPTY");
+    console.log("[DB] Connecting...");
     
-    try {
-      const pool = createPool({
-        uri: url,
-        connectionLimit: 3,
-        connectTimeout: 15000,
-        acquireTimeout: 15000,
-        enableKeepAlive: true,
-      });
-      
-      instance = drizzle(pool, {
-        schema: fullSchema,
-        mode: "default",
-      });
-      
-      console.log("[DB] Drizzle instance created successfully");
-    } catch (e: any) {
-      console.error("[DB] FAILED to create pool:", e.message);
-      throw e;
+    const parsed = parseDbUrl(url);
+    if (!parsed) {
+      throw new Error("Failed to parse DATABASE_URL");
     }
+    
+    console.log("[DB] Host:", parsed.host);
+    console.log("[DB] Port:", parsed.port);
+    console.log("[DB] User:", parsed.user);
+    console.log("[DB] Database:", parsed.database);
+    
+    const pool = createPool({
+      host: parsed.host,
+      port: parsed.port,
+      user: parsed.user,
+      password: parsed.password,
+      database: parsed.database,
+      connectionLimit: 3,
+      connectTimeout: 15000,
+      enableKeepAlive: true,
+    });
+    
+    instance = drizzle(pool, {
+      schema: fullSchema,
+      mode: "default",
+    });
+    
+    console.log("[DB] Pool created");
   }
   return instance;
 }
