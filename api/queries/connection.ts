@@ -7,7 +7,7 @@ import * as relations from "@db/relations";
 const fullSchema = { ...schema, ...relations };
 
 let instance: ReturnType<typeof drizzle<typeof fullSchema>>;
-let dbPath = "/tmp/simplifan-v2.db";
+let dbPath = "/tmp/simplifan-v3.db";
 
 export function getDb() {
   if (!instance) {
@@ -27,144 +27,165 @@ export function getDb() {
 }
 
 function pushSchema(db: Database.Database) {
-  // Create tables manually with exact column names Drizzle expects
-  // Use backtick quoting for column names with mixed case
-  
+  // Drop old tables if they have wrong schema
+  try {
+    const cols = db.pragma("table_info(vendors)") as any[];
+    const hasCreatedAt = cols.some(c => c.name.toLowerCase() === 'createdat');
+    if (hasCreatedAt) {
+      // Check if createdAt has notnull
+      const caCol = cols.find(c => c.name.toLowerCase() === 'createdat');
+      if (caCol && !caCol.notnull) {
+        console.log("[DB] Dropping old tables with wrong schema...");
+        db.exec(`DROP TABLE IF EXISTS messages`);
+        db.exec(`DROP TABLE IF EXISTS conversations`);
+        db.exec(`DROP TABLE IF EXISTS reviews`);
+        db.exec(`DROP TABLE IF EXISTS quotes`);
+        db.exec(`DROP TABLE IF EXISTS bookings`);
+        db.exec(`DROP TABLE IF EXISTS events`);
+        db.exec(`DROP TABLE IF EXISTS clients`);
+        db.exec(`DROP TABLE IF EXISTS vendor_images`);
+        db.exec(`DROP TABLE IF EXISTS vendor_services`);
+        db.exec(`DROP TABLE IF EXISTS vendors`);
+      }
+    }
+  } catch (e) {}
+
+  // Create tables with EXACT column names Drizzle expects (double-quoted)
   const tables = [
     `CREATE TABLE IF NOT EXISTS vendors (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      businessName TEXT NOT NULL,
-      ownerName TEXT,
-      email TEXT,
-      phone TEXT,
-      category TEXT,
-      subcategory TEXT,
-      bio TEXT,
-      province TEXT,
-      city TEXT,
-      address TEXT,
-      priceRange TEXT,
-      yearsInBusiness INTEGER,
-      avatar TEXT,
-      logoUrl TEXT,
-      rating REAL DEFAULT 0,
-      jobs INTEGER DEFAULT 0,
-      verified INTEGER DEFAULT 0,
-      featured INTEGER DEFAULT 0,
-      tier TEXT DEFAULT 'starter',
-      subscriptionStatus TEXT DEFAULT 'trial',
-      subscriptionEndsAt TEXT,
-      isActive INTEGER DEFAULT 1,
-      userId INTEGER,
-      createdAt INTEGER NOT NULL DEFAULT (unixepoch()),
-      updatedAt INTEGER NOT NULL DEFAULT (unixepoch())
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "businessName" TEXT NOT NULL,
+      "ownerName" TEXT,
+      "email" TEXT,
+      "phone" TEXT,
+      "category" TEXT,
+      "subcategory" TEXT,
+      "bio" TEXT,
+      "province" TEXT,
+      "city" TEXT,
+      "address" TEXT,
+      "priceRange" TEXT,
+      "yearsInBusiness" INTEGER,
+      "avatar" TEXT,
+      "logoUrl" TEXT,
+      "rating" REAL DEFAULT 0,
+      "jobs" INTEGER DEFAULT 0,
+      "verified" INTEGER DEFAULT 0,
+      "featured" INTEGER DEFAULT 0,
+      "tier" TEXT DEFAULT 'starter',
+      "subscriptionStatus" TEXT DEFAULT 'trial',
+      "subscriptionEndsAt" TEXT,
+      "isActive" INTEGER DEFAULT 1,
+      "userId" INTEGER,
+      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch()),
+      "updatedAt" INTEGER NOT NULL DEFAULT (unixepoch())
     )`,
     `CREATE TABLE IF NOT EXISTS vendor_services (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      vendorId INTEGER NOT NULL,
-      name TEXT NOT NULL,
-      description TEXT,
-      price TEXT,
-      category TEXT
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "vendorId" INTEGER NOT NULL,
+      "name" TEXT NOT NULL,
+      "description" TEXT,
+      "price" TEXT,
+      "category" TEXT
     )`,
     `CREATE TABLE IF NOT EXISTS vendor_images (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      vendorId INTEGER NOT NULL,
-      url TEXT NOT NULL,
-      caption TEXT
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "vendorId" INTEGER NOT NULL,
+      "url" TEXT NOT NULL,
+      "caption" TEXT
     )`,
     `CREATE TABLE IF NOT EXISTS clients (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT,
-      phone TEXT,
-      location TEXT,
-      avatar TEXT,
-      createdAt INTEGER
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "name" TEXT NOT NULL,
+      "email" TEXT,
+      "phone" TEXT,
+      "location" TEXT,
+      "avatar" TEXT,
+      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch())
     )`,
     `CREATE TABLE IF NOT EXISTS events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      clientId INTEGER,
-      clientName TEXT,
-      clientPhone TEXT,
-      eventType TEXT,
-      eventDate TEXT,
-      eventTime TEXT,
-      guestCount INTEGER,
-      province TEXT,
-      city TEXT,
-      area TEXT,
-      venue TEXT,
-      budget TEXT,
-      totalCost TEXT DEFAULT '0',
-      status TEXT DEFAULT 'planning',
-      notes TEXT,
-      createdAt INTEGER
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "clientId" INTEGER,
+      "clientName" TEXT,
+      "clientPhone" TEXT,
+      "eventType" TEXT,
+      "eventDate" TEXT,
+      "eventTime" TEXT,
+      "guestCount" INTEGER,
+      "province" TEXT,
+      "city" TEXT,
+      "area" TEXT,
+      "venue" TEXT,
+      "budget" TEXT,
+      "totalCost" TEXT DEFAULT '0',
+      "status" TEXT DEFAULT 'planning',
+      "notes" TEXT,
+      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch())
     )`,
     `CREATE TABLE IF NOT EXISTS bookings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      eventId INTEGER,
-      clientId INTEGER,
-      clientName TEXT,
-      clientPhone TEXT,
-      vendorId INTEGER,
-      vendorName TEXT,
-      eventType TEXT,
-      eventDate TEXT,
-      amount TEXT,
-      depositAmount TEXT,
-      platformFee TEXT,
-      status TEXT DEFAULT 'pending',
-      clientConfirmed INTEGER DEFAULT 0,
-      vendorConfirmed INTEGER DEFAULT 0,
-      reviewSubmitted INTEGER DEFAULT 0,
-      createdAt INTEGER
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "eventId" INTEGER,
+      "clientId" INTEGER,
+      "clientName" TEXT,
+      "clientPhone" TEXT,
+      "vendorId" INTEGER,
+      "vendorName" TEXT,
+      "eventType" TEXT,
+      "eventDate" TEXT,
+      "amount" TEXT,
+      "depositAmount" TEXT,
+      "platformFee" TEXT,
+      "status" TEXT DEFAULT 'pending',
+      "clientConfirmed" INTEGER DEFAULT 0,
+      "vendorConfirmed" INTEGER DEFAULT 0,
+      "reviewSubmitted" INTEGER DEFAULT 0,
+      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch())
     )`,
     `CREATE TABLE IF NOT EXISTS reviews (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      vendorId INTEGER,
-      clientId INTEGER,
-      clientName TEXT,
-      bookingId INTEGER,
-      rating INTEGER,
-      comment TEXT,
-      eventType TEXT,
-      verifiedBooking INTEGER DEFAULT 0,
-      createdAt INTEGER
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "vendorId" INTEGER,
+      "clientId" INTEGER,
+      "clientName" TEXT,
+      "bookingId" INTEGER,
+      "rating" INTEGER,
+      "comment" TEXT,
+      "eventType" TEXT,
+      "verifiedBooking" INTEGER DEFAULT 0,
+      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch())
     )`,
     `CREATE TABLE IF NOT EXISTS quotes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      eventId INTEGER,
-      clientId INTEGER,
-      clientName TEXT,
-      clientPhone TEXT,
-      vendorId INTEGER,
-      eventType TEXT,
-      eventDate TEXT,
-      guestCount INTEGER,
-      province TEXT,
-      notes TEXT,
-      quotedAmount TEXT,
-      vendorMessage TEXT,
-      status TEXT DEFAULT 'submitted',
-      createdAt INTEGER
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "eventId" INTEGER,
+      "clientId" INTEGER,
+      "clientName" TEXT,
+      "clientPhone" TEXT,
+      "vendorId" INTEGER,
+      "eventType" TEXT,
+      "eventDate" TEXT,
+      "guestCount" INTEGER,
+      "province" TEXT,
+      "notes" TEXT,
+      "quotedAmount" TEXT,
+      "vendorMessage" TEXT,
+      "status" TEXT DEFAULT 'submitted',
+      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch())
     )`,
     `CREATE TABLE IF NOT EXISTS conversations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      clientId INTEGER,
-      vendorId INTEGER,
-      lastMessage TEXT,
-      clientUnread INTEGER DEFAULT 0,
-      vendorUnread INTEGER DEFAULT 0,
-      createdAt INTEGER
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "clientId" INTEGER,
+      "vendorId" INTEGER,
+      "lastMessage" TEXT,
+      "clientUnread" INTEGER DEFAULT 0,
+      "vendorUnread" INTEGER DEFAULT 0,
+      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch())
     )`,
     `CREATE TABLE IF NOT EXISTS messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      conversationId INTEGER,
-      senderType TEXT,
-      content TEXT,
-      read INTEGER DEFAULT 0,
-      createdAt INTEGER
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "conversationId" INTEGER,
+      "senderType" TEXT,
+      "content" TEXT,
+      "read" INTEGER DEFAULT 0,
+      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch())
     )`,
   ];
 
@@ -174,14 +195,6 @@ function pushSchema(db: Database.Database) {
     } catch (e: any) {
       console.error("[DB] Table creation error:", e.message.substring(0, 100));
     }
-  }
-
-  // Create update triggers for updatedAt
-  const triggers = [
-    `CREATE TRIGGER IF NOT EXISTS vendors_updatedAt AFTER UPDATE ON vendors BEGIN UPDATE vendors SET updatedAt = unixepoch() WHERE id = NEW.id; END`,
-  ];
-  for (const t of triggers) {
-    try { db.exec(t); } catch (e) {}
   }
 
   // Seed data if empty
@@ -243,3 +256,4 @@ function seedData(db: Database.Database) {
 export function getPool() {
   return (getDb() as any).$client;
 }
+ 
