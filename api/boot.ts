@@ -4,22 +4,9 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import fs from "fs";
 import path from "path";
-import { appRouter } from "./router";
-import { createContext } from "./context";
+import { Paths } from "@contracts/constants";
 
-// Test database connection at startup
 console.log("[BOOT] Starting SimpliPlan...");
-try {
-  const { testConnection } = await import("./queries/connection");
-  const ok = await testConnection();
-  if (ok) {
-    console.log("[BOOT] DB connection verified");
-  } else {
-    console.error("[BOOT] DB connection test returned false");
-  }
-} catch (e: any) {
-  console.error("[BOOT] DB CONNECTION FAILED:", e.message);
-}
 
 const app = new Hono();
 const port = 3000;
@@ -36,12 +23,21 @@ app.use("*", async (c, next) => {
 // Health
 app.get("/api/trpc/ping", (c) => c.json({ ok: true, ts: Date.now() }));
 app.get("/health", (c) => c.json({ status: "ok", time: new Date().toISOString() }));
-app.get("/version", (c) => c.json({ version: "1.0.2", port: 3000, ts: Date.now() }));
 
 // tRPC API
-app.use("/api/trpc/*", async (c) => {
-  return fetchRequestHandler({ endpoint: "/api/trpc", req: c.req.raw, router: appRouter, createContext });
-});
+let apiReady = false;
+try {
+  const { appRouter } = await import("./router");
+  const { createContext } = await import("./context");
+  app.use("/api/trpc/*", async (c) => {
+    return fetchRequestHandler({ endpoint: "/api/trpc", req: c.req.raw, router: appRouter, createContext });
+  });
+  apiReady = true;
+  console.log("[BOOT] API ready");
+} catch (e: any) {
+  console.error("[BOOT] API fail:", e.message);
+  app.use("/api/trpc/*", (c) => c.json({ error: "API unavailable", message: e.message }, 503));
+}
 
 // Static files
 app.use("*", serveStatic({ root: "dist/public" }));
@@ -54,7 +50,6 @@ app.notFound((c) => {
   }
 });
 
-// Start
 serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, () => {
   console.log(`[BOOT] Running on port ${port}`);
 });
