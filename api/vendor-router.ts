@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eq, and, like, sql, desc } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { vendors, vendorServices, reviews } from "@db/schema";
+import { vendors, vendorServices, vendorImages, reviews } from "@db/schema";
 
 export const vendorRouter = createRouter({
   list: publicQuery
@@ -24,33 +24,52 @@ export const vendorRouter = createRouter({
       if (input?.featured) where.push(eq(vendors.featured, true));
       if (input?.search) where.push(like(vendors.businessName, `%${input.search}%`));
 
-      const result = await db.query.vendors.findMany({
-        where: where.length > 0 ? and(...where) : undefined,
-        limit: input?.limit ?? 20,
-        offset: input?.offset ?? 0,
-        orderBy: [desc(vendors.featured), desc(vendors.rating)],
-        with: { services: true, images: true },
-      });
-      return result;
+      // Simple select without relational queries
+      const result = await db.select().from(vendors)
+        .where(where.length > 0 ? and(...where) : undefined)
+        .limit(input?.limit ?? 20)
+        .offset(input?.offset ?? 0)
+        .orderBy(desc(vendors.featured), desc(vendors.rating));
+
+      // Fetch services and images separately
+      const vendorIds = result.map(v => v.id);
+      let services: any[] = [];
+      let images: any[] = [];
+      
+      if (vendorIds.length > 0) {
+        services = await db.select().from(vendorServices)
+          .where(sql`${vendorServices.vendorId} IN (${vendorIds.join(',')})`);
+        images = await db.select().from(vendorImages)
+          .where(sql`${vendorImages.vendorId} IN (${vendorIds.join(',')})`);
+      }
+
+      // Merge
+      return result.map(v => ({
+        ...v,
+        services: services.filter(s => s.vendorId === v.id),
+        images: images.filter(i => i.vendorId === v.id),
+      }));
     }),
 
   byId: publicQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = getDb();
-      const vendor = await db.query.vendors.findFirst({
-        where: eq(vendors.id, input.id),
-        with: { services: true, images: true },
-      });
+      const [vendor] = await db.select().from(vendors)
+        .where(eq(vendors.id, input.id))
+        .limit(1);
       if (!vendor) return null;
 
-      const vendorReviews = await db.query.reviews.findMany({
-        where: eq(reviews.vendorId, input.id),
-        limit: 20,
-        orderBy: [desc(reviews.createdAt)],
-      });
+      const services = await db.select().from(vendorServices)
+        .where(eq(vendorServices.vendorId, input.id));
+      const imgs = await db.select().from(vendorImages)
+        .where(eq(vendorImages.vendorId, input.id));
+      const vendorReviews = await db.select().from(reviews)
+        .where(eq(reviews.vendorId, input.id))
+        .orderBy(desc(reviews.createdAt))
+        .limit(20);
 
-      return { ...vendor, reviews: vendorReviews };
+      return { ...vendor, services, images: imgs, reviews: vendorReviews };
     }),
 
   create: publicQuery
@@ -82,7 +101,7 @@ export const vendorRouter = createRouter({
       const [result] = await db.insert(vendors).values({
         ...vendorData,
         avatar,
-        subscriptionEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 day trial
+        subscriptionEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
       });
 
       const vendorId = Number(result.insertId);
@@ -140,11 +159,13 @@ export const vendorRouter = createRouter({
     .input(z.object({ vendorId: z.number() }))
     .query(async ({ input }) => {
       const db = getDb();
-      const vendor = await db.query.vendors.findFirst({
-        where: eq(vendors.id, input.vendorId),
-        with: { services: true },
-      });
+      const [vendor] = await db.select().from(vendors)
+        .where(eq(vendors.id, input.vendorId))
+        .limit(1);
       if (!vendor) return null;
+
+      const services = await db.select().from(vendorServices)
+        .where(eq(vendorServices.vendorId, input.vendorId));
 
       const reviewData = await db.select({
         avgRating: sql<number>`COALESCE(AVG(${reviews.rating}), 0)`,
@@ -153,6 +174,7 @@ export const vendorRouter = createRouter({
 
       return {
         ...vendor,
+        services,
         avgRating: Number(reviewData[0]?.avgRating ?? 0),
         reviewCount: Number(reviewData[0]?.count ?? 0),
       };
