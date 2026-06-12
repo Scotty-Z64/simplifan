@@ -21,6 +21,16 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+          ui: ["@tanstack/react-query", "@trpc/react-query", "@trpc/client"],
+          icons: ["lucide-react"],
+        },
+      },
+    },
   },
   server: {
     port: 3000,
