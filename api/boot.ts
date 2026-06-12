@@ -22,6 +22,7 @@ app.use("*", async (c, next) => {
 // Health
 app.get("/api/trpc/ping", (c) => c.json({ ok: true, ts: Date.now() }));
 app.get("/health", (c) => c.json({ status: "ok", time: new Date().toISOString() }));
+app.get("/version", (c) => c.json({ version: "1.0.2", port: 3000, ts: Date.now() }));
 
 // tRPC API
 app.use("/api/trpc/*", async (c) => {
