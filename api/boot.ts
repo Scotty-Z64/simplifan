@@ -1,12 +1,15 @@
 import { Hono } from "hono";
-import { bodyLimit } from "hono/body-limit";
-import type { HttpBindings } from "@hono/node-server";
+import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
+import fs from "fs";
+import path from "path";
 import { Paths } from "@contracts/constants";
 
-const app = new Hono<{ Bindings: HttpBindings }>();
+const app = new Hono();
+const port = parseInt(process.env.PORT || "3000");
 
-// ─── CORS headers for all responses ───
+// CORS
 app.use("*", async (c, next) => {
   c.header("Access-Control-Allow-Origin", "*");
   c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -15,72 +18,47 @@ app.use("*", async (c, next) => {
   await next();
 });
 
-// ─── Health check (NO dependencies) ───
+// Health
 app.get("/api/trpc/ping", (c) => c.json({ ok: true, ts: Date.now() }));
 app.get("/health", (c) => c.json({ status: "ok", time: new Date().toISOString() }));
-app.get("/", (c) => c.json({ message: "SimpliPlan API is running" }));
 
-// ─── Body limit ───
-app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
-
-// ─── OAuth callback ───
+// OAuth
 try {
   const { createOAuthCallbackHandler } = await import("./kimi/auth");
   app.get(Paths.oauthCallback, createOAuthCallbackHandler());
 } catch (e) {
-  console.warn("[BOOT] OAuth not configured:", (e as Error).message);
+  console.warn("[BOOT] OAuth skip:", (e as Error).message);
 }
 
-// ─── tRPC API ───
+// tRPC
 let apiReady = false;
 try {
   const { appRouter } = await import("./router");
   const { createContext } = await import("./context");
-  
   app.use("/api/trpc/*", async (c) => {
-    return fetchRequestHandler({
-      endpoint: "/api/trpc",
-      req: c.req.raw,
-      router: appRouter,
-      createContext,
-    });
+    return fetchRequestHandler({ endpoint: "/api/trpc", req: c.req.raw, router: appRouter, createContext });
   });
   apiReady = true;
-  console.log("[BOOT] tRPC API loaded successfully");
+  console.log("[BOOT] API ready");
 } catch (e) {
-  console.error("[BOOT] tRPC API failed to load:", (e as Error).message);
-  app.use("/api/trpc/*", (c) => {
-    return c.json({ 
-      error: "API temporarily unavailable", 
-      message: (e as Error).message
-    }, 503);
-  });
+  console.error("[BOOT] API fail:", (e as Error).message);
+  app.use("/api/trpc/*", (c) => c.json({ error: "API unavailable" }, 503));
 }
 
-app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
-
-// ─── Production server ───
-const isProduction = process.env.NODE_ENV === "production";
-
-if (isProduction) {
-  console.log("[BOOT] Starting in PRODUCTION mode");
-  console.log("[BOOT] API ready:", apiReady);
-  console.log("[BOOT] PORT:", process.env.PORT || "3000");
-  
+// Static files
+const publicPath = path.resolve(process.cwd(), "dist/public");
+app.use("*", serveStatic({ root: "dist/public" }));
+app.notFound((c) => {
   try {
-    const { serve } = await import("@hono/node-server");
-    const { serveStaticFiles } = await import("./lib/vite");
-    serveStaticFiles(app);
-    
-    const port = parseInt(process.env.PORT || "3000");
-    serve({ fetch: app.fetch, port }, () => {
-      console.log(`[BOOT] Server running on port ${port}`);
-      console.log(`[BOOT] Health check: http://localhost:${port}/api/trpc/ping`);
-    });
-  } catch (e) {
-    console.error("[BOOT] Failed to start server:", (e as Error).message);
-    process.exit(1);
+    const html = fs.readFileSync(path.resolve(publicPath, "index.html"), "utf-8");
+    return c.html(html);
+  } catch {
+    return c.json({ error: "Not found" }, 404);
   }
-}
+});
 
-export default app;
+// Start
+console.log(`[BOOT] Starting on port ${port}...`);
+serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, () => {
+  console.log(`[BOOT] Running on http://0.0.0.0:${port}`);
+});
