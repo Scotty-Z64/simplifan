@@ -7,7 +7,7 @@ import * as relations from "@db/relations";
 const fullSchema = { ...schema, ...relations };
 
 let instance: ReturnType<typeof drizzle<typeof fullSchema>>;
-let dbPath = "/tmp/simplifan-v3.db";
+let dbPath = "/tmp/simplifan-v4.db";
 
 export function getDb() {
   if (!instance) {
@@ -76,9 +76,7 @@ function pushSchema(db: Database.Database) {
       "subscriptionStatus" TEXT DEFAULT 'trial',
       "subscriptionEndsAt" TEXT,
       "isActive" INTEGER DEFAULT 1,
-      "userId" INTEGER,
-      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch()),
-      "updatedAt" INTEGER NOT NULL DEFAULT (unixepoch())
+      "userId" INTEGER
     )`,
     `CREATE TABLE IF NOT EXISTS vendor_services (
       "id" INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,8 +98,7 @@ function pushSchema(db: Database.Database) {
       "email" TEXT,
       "phone" TEXT,
       "location" TEXT,
-      "avatar" TEXT,
-      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch())
+      "avatar" TEXT
     )`,
     `CREATE TABLE IF NOT EXISTS events (
       "id" INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -119,8 +116,7 @@ function pushSchema(db: Database.Database) {
       "budget" TEXT,
       "totalCost" TEXT DEFAULT '0',
       "status" TEXT DEFAULT 'planning',
-      "notes" TEXT,
-      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch())
+      "notes" TEXT
     )`,
     `CREATE TABLE IF NOT EXISTS bookings (
       "id" INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -138,8 +134,7 @@ function pushSchema(db: Database.Database) {
       "status" TEXT DEFAULT 'pending',
       "clientConfirmed" INTEGER DEFAULT 0,
       "vendorConfirmed" INTEGER DEFAULT 0,
-      "reviewSubmitted" INTEGER DEFAULT 0,
-      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch())
+      "reviewSubmitted" INTEGER DEFAULT 0
     )`,
     `CREATE TABLE IF NOT EXISTS reviews (
       "id" INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -150,8 +145,7 @@ function pushSchema(db: Database.Database) {
       "rating" INTEGER,
       "comment" TEXT,
       "eventType" TEXT,
-      "verifiedBooking" INTEGER DEFAULT 0,
-      "createdAt" INTEGER NOT NULL DEFAULT (unixepoch())
+      "verifiedBooking" INTEGER DEFAULT 0
     )`,
     `CREATE TABLE IF NOT EXISTS quotes (
       "id" INTEGER PRIMARY KEY AUTOINCREMENT,
