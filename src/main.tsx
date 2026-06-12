@@ -2,6 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { seedLocalStorage } from './lib/staticData'
+
+// Seed demo data for static mode (no backend needed)
+seedLocalStorage()
 
 // Register Service Worker for PWA offline mode
 if ('serviceWorker' in navigator) {
