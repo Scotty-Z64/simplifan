@@ -126,7 +126,8 @@ async function processStep(phone: string, session: WASession, message: string) {
         );
       } else {
         await sendWhatsAppMessage(phone,
-          `I didn't recognise that province. Please choose from the list or type the province name.`n        );
+          `I didn't recognise that province. Please choose from the list or type the province name.`
+        );
         await sendProvinceList(phone);
       }
       break;
@@ -435,8 +436,8 @@ function findGuestOption(input: string): typeof GUEST_OPTIONS[0] | undefined {
 
 function parseGuestCount(id: string): number {
   const map: Record<string, number> = {
-    under_20: 15, 20_50: 35, 50_100: 75,
-    100_200: 150, 200_500: 350, 500_plus: 600,
+    under_20: 15, "20_50": 35, "50_100": 75,
+    "100_200": 150, "200_500": 350, "500_plus": 600,
   };
   return map[id] || 50;
 }
