@@ -63,6 +63,10 @@ function pushSchema(db: Database.Database) {
     subscriptionEndsAt TEXT,
     isActive INTEGER DEFAULT 1,
     userId INTEGER,
+    termsAccepted INTEGER DEFAULT 0,
+    termsAcceptedAt TEXT,
+    termsVersion TEXT,
+    violationCount INTEGER DEFAULT 0,
     createdAt INTEGER DEFAULT (unixepoch()),
     updatedAt INTEGER DEFAULT (unixepoch())
   )`);
@@ -275,6 +279,17 @@ function pushSchema(db: Database.Database) {
     code TEXT NOT NULL,
     createdAt INTEGER DEFAULT (unixepoch()),
     expiresAt INTEGER NOT NULL
+  )`);
+
+  db.exec(`CREATE TABLE IF NOT EXISTS vendor_violations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vendorId INTEGER,
+    clientId INTEGER,
+    conversationId INTEGER,
+    type TEXT,
+    evidence TEXT,
+    resolved INTEGER DEFAULT 0,
+    createdAt INTEGER DEFAULT (unixepoch())
   )`);
 
   console.log("[DB] Tables created");
